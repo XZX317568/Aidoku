@@ -145,6 +145,18 @@ class AidokuRealCUGANBlock(nn.Module):
 
     Input:  [1, 3, blockSize, blockSize] in [0,1]  (blockSize includes shrink border)
     Output: [1, 3, (blockSize-2*shrink)*2, (blockSize-2*shrink)*2] in [0,1]
+
+    IMPORTANT: All sizes are hardcoded Python ints (no dynamic x.shape access)
+    because torch.jit.trace turns shape access into 0-dim tensors that
+    coremltools cannot convert to scalar op parameters.
+
+    Logic is identical to the official UpCunet2x.forward(tile_mode=0, alpha=1)
+    followed by Aidoku's shrink-border crop:
+        inp = reflect_pad(x, 18)          # ensure even + border
+        out1 = unet1(inp)                 # 2x upsample
+        out2 = unet2(out1, alpha=1)       # refinement
+        result = out2 + crop20(out1)      # residual add
+        result = center_crop(result)      # drop shrink border
     """
     def __init__(self, model, shrink_size, scale=2):
         super(AidokuRealCUGANBlock, self).__init__()
@@ -154,20 +166,16 @@ class AidokuRealCUGANBlock(nn.Module):
         self.scale = scale
 
     def forward(self, x):
-        h0 = x.shape[2]
-        w0 = x.shape[3]
-        # Real-CUGAN tile_mode=0 forward (pad to even + 18px reflect border)
-        ph = ((h0 - 1) // 2 + 1) * 2
-        pw = ((w0 - 1) // 2 + 1) * 2
-        inp = F.pad(x, (18, 18 + pw - w0, 18, 18 + ph - h0), 'reflect')
+        # For BLOCK_SIZE=196 (even): ph = pw = 196, so pad = (18,18,18,18)
+        inp = F.pad(x, (18, 18, 18, 18), 'reflect')
         out1 = self.unet1.forward(inp)          # 2x upsample
         out2 = self.unet2.forward(out1, 1)      # refinement (residual)
-        out1c = F.pad(out1, (-20, -20, -20, -20))
+        # F.pad(out1, (-20,-20,-20,-20)) == crop 20px border each side
+        out1c = out1[:, :, 20:-20, 20:-20]
         result = torch.add(out2, out1c)         # [0,1] range, 2x of input
-        # Center-crop to Aidoku's expected output: (blockSize - 2*shrink) * scale
-        crop = self.shrink_size * self.scale
-        target = (h0 - 2 * self.shrink_size) * self.scale
-        result = result[:, :, crop:crop + target, crop:crop + target]
+        # Center-crop to Aidoku's expected output: (196 - 2*20) * 2 = 312
+        # crop offset = shrink*scale = 40, target size = 312
+        result = result[:, :, 40:352, 40:352]
         return result
 
 
@@ -223,6 +231,30 @@ def download_weights(workdir):
     raise RuntimeError("Could not locate a 2x .pth weight file. See list above.")
 
 
+def diagnose_shapes(model):
+    """Print intermediate tensor shapes for the full forward pass (debug aid)."""
+    print("--- Shape diagnostics ---")
+    try:
+        with torch.no_grad():
+            x = torch.rand(1, 3, BLOCK_SIZE, BLOCK_SIZE)
+            print(f"input:            {list(x.shape)}")
+            inp = F.pad(x, (18, 18, 18, 18), 'reflect')
+            print(f"after reflect18:  {list(inp.shape)}")
+            out1 = model.unet1.forward(inp)
+            print(f"unet1 output:     {list(out1.shape)}")
+            out2 = model.unet2.forward(out1, 1)
+            print(f"unet2 output:     {list(out2.shape)}")
+            out1c = out1[:, :, 20:-20, 20:-20]
+            print(f"unet1 cropped:    {list(out1c.shape)}")
+            added = torch.add(out2, out1c)
+            print(f"after add:        {list(added.shape)}")
+            final = added[:, :, 40:352, 40:352]
+            print(f"final crop:       {list(final.shape)}")
+    except Exception as e:
+        print(f"diagnostics FAILED: {e}")
+    print("--- end diagnostics ---")
+
+
 def main():
     workdir = os.path.dirname(os.path.abspath(__file__))
     workdir = os.path.join(workdir, "realcugan_work")
@@ -262,6 +294,9 @@ def main():
         f"Output shape mismatch! Got {out.shape}, expected (1,3,{expected_out},{expected_out})"
     print("Size verification PASSED.")
 
+    # Diagnostic: print intermediate shapes to confirm dimension flow
+    diagnose_shapes(model)
+
     # Trace the model
     print("Tracing model ...")
     traced = torch.jit.trace(wrapper, dummy)
@@ -270,12 +305,15 @@ def main():
     # Convert to CoreML
     print("Converting to CoreML (this may take a few minutes) ...")
     import coremltools as ct
+    print(f"coremltools version: {ct.__version__}")
+    print(f"torch version: {torch.__version__}")
+
     mlmodel = ct.convert(
         traced,
         inputs=[ct.TensorType(name="input", shape=(1, 3, BLOCK_SIZE, BLOCK_SIZE))],
-        outputs=[ct.TensorType(name="output")],
         convert_to="mlprogram",
         compute_precision=ct.precision.FLOAT16,
+        skip_model_load=True,
     )
 
     out_path = os.path.join(workdir, "RealCUGAN_2x_anime.mlpackage")
