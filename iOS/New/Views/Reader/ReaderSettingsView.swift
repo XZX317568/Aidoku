@@ -291,6 +291,13 @@ struct ReaderSettingsView: View {
                                         ))
                                     )
                                 )
+                                SettingView(
+                                    setting: .init(
+                                        key: "Reader.compareOnLongPress",
+                                        title: NSLocalizedString("LONG_PRESS_COMPARE"),
+                                        value: .toggle(.init())
+                                    )
+                                )
                             }
                         } header: {
                             Text(NSLocalizedString("UPSCALING"))

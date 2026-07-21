@@ -154,6 +154,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Reader.markDuplicateChapters": true,
                 "Reader.downsampleImages": false,
                 "Reader.upscaleImages": false,
+                "Reader.compareOnLongPress": true,
                 "Reader.upscaleMaxHeight": 2000,
                 "Reader.nativeEnhanceSharpen": 0.5,
                 "Reader.nativeEnhanceContrast": 0.15,

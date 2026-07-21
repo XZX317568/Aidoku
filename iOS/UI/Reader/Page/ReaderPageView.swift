@@ -42,6 +42,23 @@ class ReaderPageView: UIView {
     private var currentPage: Page?
     private var currentImageRequest: ImageRequest?
 
+    // MARK: - Original image comparison (long-press to view pre-upscale image)
+    private var comparisonGesture: UILongPressGestureRecognizer?
+    private var enhancedImage: UIImage?
+    private var isShowingOriginal = false
+    private let originalBadge: UILabel = {
+        let label = UILabel()
+        label.text = NSLocalizedString("ORIGINAL")
+        label.font = .systemFont(ofSize: 12, weight: .semibold)
+        label.textColor = .white
+        label.backgroundColor = UIColor.black.withAlphaComponent(0.65)
+        label.textAlignment = .center
+        label.layer.cornerRadius = 12
+        label.clipsToBounds = true
+        label.isHidden = true
+        return label
+    }()
+
     init() {
         super.init(frame: .zero)
         configure()
@@ -76,6 +93,22 @@ class ReaderPageView: UIView {
 
         imageWidthConstraint = imageView.widthAnchor.constraint(equalTo: widthAnchor)
         imageWidthConstraint?.isActive = true
+
+        // comparison: long-press to temporarily view the original (non-upscaled) image
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleComparisonPress(_:)))
+        longPress.minimumPressDuration = 0.35
+        longPress.delegate = self
+        addGestureRecognizer(longPress)
+        comparisonGesture = longPress
+
+        originalBadge.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(originalBadge)
+        NSLayoutConstraint.activate([
+            originalBadge.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+            originalBadge.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            originalBadge.widthAnchor.constraint(greaterThanOrEqualToConstant: 64),
+            originalBadge.heightAnchor.constraint(equalToConstant: 24)
+        ])
     }
 
     func constrain() {
@@ -95,6 +128,11 @@ class ReaderPageView: UIView {
     func setPage(_ page: Page, sourceId: String? = nil, skipProcessing: Bool = false) async -> Bool {
         // Store current page data for reload functionality
         self.currentPage = page
+
+        // reset any active original-image comparison from the previous page
+        isShowingOriginal = false
+        enhancedImage = nil
+        originalBadge.isHidden = true
 
         if sourceId != nil {
             self.sourceId = sourceId
@@ -612,5 +650,84 @@ extension ReaderPageView {
             UIImage(cgImage: leftCGImage, scale: image.scale, orientation: image.imageOrientation),
             UIImage(cgImage: rightCGImage, scale: image.scale, orientation: image.imageOrientation)
         )
+    }
+}
+
+// MARK: - Original Image Comparison
+extension ReaderPageView: UIGestureRecognizerDelegate {
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let comparisonGesture, gestureRecognizer === comparisonGesture else { return true }
+        // Only enable comparison when upscaling is active and the setting is on.
+        // Disable when Live Text is on to avoid conflicting with its long-press.
+        let upscaleOn = UserDefaults.standard.bool(forKey: "Reader.upscaleImages")
+        let compareOn = UserDefaults.standard.bool(forKey: "Reader.compareOnLongPress")
+        let downsampleOn = UserDefaults.standard.bool(forKey: "Reader.downsampleImages")
+        let liveTextOn = UserDefaults.standard.bool(forKey: "Reader.liveText")
+        return upscaleOn && compareOn && !downsampleOn && !liveTextOn
+    }
+
+    @objc func handleComparisonPress(_ gesture: UILongPressGestureRecognizer) {
+        switch gesture.state {
+            case .began:
+                showOriginalImage()
+            case .ended, .cancelled, .failed:
+                restoreEnhancedImage()
+            default:
+                break
+        }
+    }
+
+    private func showOriginalImage() {
+        guard !isShowingOriginal, let current = imageView.image else { return }
+        isShowingOriginal = true
+        enhancedImage = current
+        originalBadge.isHidden = false
+        Task { [weak self] in
+            guard let self, self.isShowingOriginal else { return }
+            if let original = await self.loadOriginalImage() {
+                guard self.isShowingOriginal else { return }
+                self.imageView.image = original
+                self.fixImageSize()
+            }
+        }
+    }
+
+    private func restoreEnhancedImage() {
+        guard isShowingOriginal else { return }
+        isShowingOriginal = false
+        originalBadge.isHidden = true
+        if let enhanced = enhancedImage {
+            imageView.image = enhanced
+            fixImageSize()
+        }
+        enhancedImage = nil
+    }
+
+    /// Loads the original (non-upscaled) version of the current page image.
+    private func loadOriginalImage() async -> UIImage? {
+        // In-memory page image: apply border crop (if enabled) but skip upscaling
+        if let pageImage = currentPage?.image {
+            var image = pageImage
+            if UserDefaults.standard.bool(forKey: "Reader.cropBorders") {
+                image = CropBordersProcessor().process(image) ?? image
+            }
+            return image
+        }
+        // Base64 page image: decode directly and skip upscaling
+        if
+            let base64 = currentPage?.base64,
+            let data = Data(base64Encoded: base64),
+            var image = UIImage(data: data)
+        {
+            if UserDefaults.standard.bool(forKey: "Reader.cropBorders") {
+                image = CropBordersProcessor().process(image) ?? image
+            }
+            return image
+        }
+        // URL-based image: re-request the same page without the upscale processor
+        guard let request = currentImageRequest else { return nil }
+        var originalRequest = request
+        originalRequest.processors = request.processors.filter { !($0 is UpscaleProcessor) }
+        return try? await ImagePipeline.shared.image(for: originalRequest)
     }
 }

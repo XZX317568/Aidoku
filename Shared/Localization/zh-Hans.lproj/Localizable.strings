@@ -497,6 +497,8 @@
 "%@_EXPERIMENTAL" = "%@（实验性）";
 "UPSCALE_IMAGES" = "超分辨率图像";
 "UPSCALING_MODELS" = "超分辨率模型";
+"ORIGINAL" = "原图";
+"LONG_PRESS_COMPARE" = "长按对比原图";
 "UPSCALE_MAX_IMAGE_HEIGHT" = "最大图片高度";
 "UPSCALE_MAX_IMAGE_HEIGHT_TEXT" = "大于最大图片高度的图片将不会进行放大处理。";
 "ENABLED_MODEL" = "已启用模型";
