@@ -125,6 +125,21 @@ class ReaderPageView: UIView {
         ])
     }
 
+    // MARK: - UIGestureRecognizer support
+    // Note: gestureRecognizerShouldBegin(_:) is declared by UIView, so it must be
+    // overridden in the class body (not an extension). It also serves as the
+    // UIGestureRecognizerDelegate implementation for the comparison gesture.
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let comparisonGesture, gestureRecognizer === comparisonGesture else { return true }
+        // Only enable comparison when upscaling is active and the setting is on.
+        // Disable when Live Text is on to avoid conflicting with its long-press.
+        let upscaleOn = UserDefaults.standard.bool(forKey: "Reader.upscaleImages")
+        let compareOn = UserDefaults.standard.bool(forKey: "Reader.compareOnLongPress")
+        let downsampleOn = UserDefaults.standard.bool(forKey: "Reader.downsampleImages")
+        let liveTextOn = UserDefaults.standard.bool(forKey: "Reader.liveText")
+        return upscaleOn && compareOn && !downsampleOn && !liveTextOn
+    }
+
     func setPage(_ page: Page, sourceId: String? = nil, skipProcessing: Bool = false) async -> Bool {
         // Store current page data for reload functionality
         self.currentPage = page
@@ -655,17 +670,6 @@ extension ReaderPageView {
 
 // MARK: - Original Image Comparison
 extension ReaderPageView: UIGestureRecognizerDelegate {
-    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        guard let comparisonGesture, gestureRecognizer === comparisonGesture else { return true }
-        // Only enable comparison when upscaling is active and the setting is on.
-        // Disable when Live Text is on to avoid conflicting with its long-press.
-        let upscaleOn = UserDefaults.standard.bool(forKey: "Reader.upscaleImages")
-        let compareOn = UserDefaults.standard.bool(forKey: "Reader.compareOnLongPress")
-        let downsampleOn = UserDefaults.standard.bool(forKey: "Reader.downsampleImages")
-        let liveTextOn = UserDefaults.standard.bool(forKey: "Reader.liveText")
-        return upscaleOn && compareOn && !downsampleOn && !liveTextOn
-    }
-
     @objc func handleComparisonPress(_ gesture: UILongPressGestureRecognizer) {
         switch gesture.state {
             case .began:
