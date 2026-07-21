@@ -51,6 +51,7 @@ class ReaderViewController: BaseObservingViewController {
     private lazy var activityIndicator = UIActivityIndicatorView(style: .medium)
     private lazy var toolbarView = ReaderToolbarView()
     private var toolbarViewWidthConstraint: NSLayoutConstraint?
+    private lazy var brightnessControlView = ReaderBrightnessControlView()
 
     private var squeezeTimer: Timer?
     private var longSqueezeTimer: Timer?
@@ -128,6 +129,11 @@ class ReaderViewController: BaseObservingViewController {
         node.backgroundColor = .systemBackground
         navigationController?.navigationBar.prefersLargeTitles = false
 
+        // Preload upscaling model in background to avoid first-page delay
+        Task.detached(priority: .utility) {
+            await ModelManager.shared.preloadEnabledModel()
+        }
+
         // navbar buttons
         navigationItem.leftBarButtonItems = [
             UIBarButtonItem(
@@ -194,6 +200,11 @@ class ReaderViewController: BaseObservingViewController {
 
         add(child: descriptionButtonController)
 
+        // brightness gesture overlay (only active when bars are hidden)
+        brightnessControlView.translatesAutoresizingMaskIntoConstraints = false
+        brightnessControlView.isHidden = true
+        view.addSubview(brightnessControlView)
+
         toolbarItems = [toolbarButtonItemView]
         navigationController?.isToolbarHidden = false
         navigationController?.toolbar.fitContentViewToToolbar()
@@ -241,7 +252,12 @@ class ReaderViewController: BaseObservingViewController {
             activityIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor),
 
             descriptionButtonController.view.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            pageDescriptionButtonBottomConstraint
+            pageDescriptionButtonBottomConstraint,
+
+            brightnessControlView.topAnchor.constraint(equalTo: view.topAnchor),
+            brightnessControlView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            brightnessControlView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            brightnessControlView.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.25)
         ])
     }
 
@@ -778,6 +794,7 @@ extension ReaderViewController: ReaderHoldingDelegate {
 
         self.chapter = chapter
         self.chaptersToMark = [chapter]
+        self.hasPrefetchedNextChapter = false
         loadNavbarTitle()
     }
 
@@ -814,6 +831,23 @@ extension ReaderViewController: ReaderHoldingDelegate {
             && !(reader is ReaderPagedTextViewController && (reader as? ReaderPagedTextViewController)?.hasPaginated == true)
         if pages.upperBound >= totalPages && !isPrePaginationPlaceholder {
             setCompleted()
+        }
+
+        // Prefetch next chapter's first pages when approaching the end (within 3 pages)
+        if totalPages - pages.upperBound <= 3 && totalPages > 3 {
+            prefetchNextChapter()
+        }
+    }
+
+    /// Prefetch the next chapter's page list in the background for faster chapter transitions
+    private var hasPrefetchedNextChapter = false
+    private func prefetchNextChapter() {
+        guard !hasPrefetchedNextChapter else { return }
+        hasPrefetchedNextChapter = true
+        Task.detached(priority: .utility) { [weak self] in
+            guard let self, let nextChapter = await self.getNextChapter() else { return }
+            // Warm up the page list fetch so it's ready when the user transitions
+            _ = try? await self.source?.getPageList(manga: self.manga, chapter: nextChapter)
         }
     }
 
@@ -900,6 +934,17 @@ extension ReaderViewController: ReaderHoldingDelegate {
         }
         if UserDefaults.standard.bool(forKey: "Library.deleteDownloadAfterReading") {
             chaptersToRemoveDownload.append(chapter)
+            // Trigger deletion immediately instead of deferring to viewWillDisappear,
+            // which may not complete its Task before the VC is torn down.
+            let toDelete = chaptersToRemoveDownload
+            Task {
+                await DownloadManager.shared.delete(chapters: toDelete.map {
+                    .init(sourceKey: manga.sourceKey, mangaKey: manga.key, chapterKey: $0.key)
+                })
+                // Only clear after deletion succeeds, so UserDefaults persistence
+                // remains as a safety net if the app is killed mid-deletion.
+                chaptersToRemoveDownload.removeAll { ch in toDelete.contains(ch) }
+            }
         }
     }
 }
@@ -1049,6 +1094,9 @@ extension ReaderViewController {
     func showBars() {
         guard let navigationController else { return }
 
+        // Hide brightness control when bars are shown
+        brightnessControlView.isHidden = true
+
         UIView.animate(withDuration: CATransaction.animationDuration()) {
             self.statusBarHidden = false
             self.setNeedsStatusBarAppearanceUpdate()
@@ -1093,6 +1141,11 @@ extension ReaderViewController {
 
     func hideBars() {
         guard let navigationController else { return }
+
+        // Show brightness control when bars are hidden
+        if UserDefaults.standard.bool(forKey: "Reader.brightnessGesture") {
+            brightnessControlView.isHidden = false
+        }
 
         UIView.animate(withDuration: CATransaction.animationDuration()) {
             self.statusBarHidden = true

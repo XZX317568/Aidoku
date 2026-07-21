@@ -40,6 +40,28 @@ struct HistoryView: View {
                 .ignoresSafeArea()
             } else {
                 List(selection: $listSelection) {
+                    // "Continue Reading" quick access section
+                    if !continueReadingEntries.isEmpty {
+                        Section {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(continueReadingEntries, id: \.chapterCacheKey) { entry in
+                                        continueReadingCard(entry: entry)
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 4)
+                            }
+                            .listRowInsets(.zero)
+                            .listRowSeparator(.hidden)
+                        } header: {
+                            Text(NSLocalizedString("CONTINUE_READING_SECTION"))
+                                .textCase(.none)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.primary)
+                        }
+                    }
+
                     let sections = viewModel.filteredHistory.values.sorted { $0.daysAgo < $1.daysAgo }
                     ForEach(sections, id: \.daysAgo) { section in
                         if !section.entries.isEmpty {
@@ -245,6 +267,65 @@ struct HistoryView: View {
                 await viewModel.loadMore()
             }
         }
+    }
+
+    /// Entries that are in-progress (not completed) for the "Continue Reading" section
+    var continueReadingEntries: [HistoryEntry] {
+        guard searchText.isEmpty else { return [] }
+        var seen = Set<String>()
+        var result: [HistoryEntry] = []
+        for section in viewModel.filteredHistory.values.sorted(by: { $0.daysAgo < $1.daysAgo }) {
+            for entry in section.entries {
+                guard !seen.contains(entry.mangaCacheKey) else { continue }
+                // Only show entries that are in-progress (have a current page > 0 and not completed)
+                if let currentPage = entry.currentPage, currentPage > 0 {
+                    seen.insert(entry.mangaCacheKey)
+                    result.append(entry)
+                }
+                if result.count >= 10 { break }
+            }
+            if result.count >= 10 { break }
+        }
+        return result
+    }
+
+    func continueReadingCard(entry: HistoryEntry) -> some View {
+        let manga = viewModel.mangaCache[entry.mangaCacheKey]
+        let chapter = viewModel.chapterCache[entry.chapterCacheKey]
+        return Button {
+            if let manga {
+                path.push(MangaViewController(manga: manga, parent: path.rootViewController))
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                MangaCoverView(
+                    coverImage: manga?.cover ?? "",
+                    width: 100,
+                    height: 150,
+                    downsampleWidth: 100
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+                Text(manga?.title ?? "")
+                    .font(.caption)
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
+
+                if let currentPage = entry.currentPage, let totalPages = entry.totalPages, totalPages > 0 {
+                    ProgressView(value: Double(currentPage), total: Double(totalPages))
+                        .progressViewStyle(.linear)
+                    Text("\(currentPage)/\(totalPages)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else if let chapterNum = chapter?.chapterNumber {
+                    Text(String(format: NSLocalizedString("CH_SPACE_X"), chapterNum))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 100)
+        }
+        .buttonStyle(.plain)
     }
 
     // prompt for biometrics to unlock the view

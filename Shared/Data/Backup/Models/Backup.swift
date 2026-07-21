@@ -27,14 +27,24 @@ struct Backup: Codable, Hashable, Identifiable, Sendable {
     var version: String?
 
     static func load(from url: URL) -> Backup? {
-        guard let json = try? Data(contentsOf: url) else { return nil }
+        guard var data = try? Data(contentsOf: url) else { return nil }
 
-        if let backup = try? PropertyListDecoder().decode(Backup.self, from: json) {
+        // Try decoding directly first (uncompressed backups)
+        if let backup = try? PropertyListDecoder().decode(Backup.self, from: data) {
             return backup
-        } else {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .secondsSince1970
-            return try? decoder.decode(Backup.self, from: json)
         }
+
+        // Try decompressing zlib-compressed backups
+        if let decompressed = (data as NSData).decompressed(using: .zlib) as Data? {
+            data = decompressed
+            if let backup = try? PropertyListDecoder().decode(Backup.self, from: data) {
+                return backup
+            }
+        }
+
+        // Fallback: try JSON decoding (legacy format)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        return try? decoder.decode(Backup.self, from: data)
     }
 }

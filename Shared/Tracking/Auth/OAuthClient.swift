@@ -126,6 +126,8 @@ extension OAuthClient {
         if tokens == nil { loadTokens() }
 
         var request = URLRequest(url: url)
+        // Set reasonable timeout to avoid indefinite hangs on slow tracker APIs
+        request.timeoutInterval = 30
         request.addValue(
             "\(tokens?.tokenType ?? "Bearer") \(tokens?.accessToken ?? "")",
             forHTTPHeaderField: "Authorization"

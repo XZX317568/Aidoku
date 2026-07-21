@@ -26,6 +26,10 @@ class ReaderWebtoonViewController: ZoomableCollectionViewController {
 
 //    private let prefetcher = ImagePrefetcher()
 
+    /// Prefetches upcoming page images into Nuke cache to reduce white flash during scroll
+    private var imagePrefetcher: ImagePrefetcher?
+    private static let prefetchAheadCount = 5
+
     // Indicates if infinite scroll is enabled
     private lazy var infinite = UserDefaults.standard.bool(forKey: "Reader.verticalInfiniteScroll")
     private var loadingPrevious = false
@@ -116,7 +120,7 @@ class ReaderWebtoonViewController: ZoomableCollectionViewController {
 
         addObserver(forName: UIApplication.didReceiveMemoryWarningNotification.rawValue) { [weak self] _ in
             // clear live text analysis
-            LogManager.logger.warn("Received memory warning")
+            LogManager.logger.warn("Received memory warning (webtoon reader)")
 
             if #available(iOS 16.0, *) {
                 self?.collectionNode.visibleNodes.forEach { node in
@@ -124,6 +128,13 @@ class ReaderWebtoonViewController: ZoomableCollectionViewController {
                     node.imageNode.imageAnalaysisInteraction = nil
                 }
             }
+
+            // Stop any in-flight prefetching to free memory
+            self?.imagePrefetcher?.stopPrefetching()
+            self?.imagePrefetcher = nil
+
+            // Trim Nuke's in-memory image cache to reclaim memory
+            ImagePipeline.shared.cache.removeAll()
         }
     }
 
@@ -345,6 +356,7 @@ extension ReaderWebtoonViewController {
             isScrolling = false
             checkInfiniteLoad()
         }
+        prefetchUpcomingPages()
     }
 
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
@@ -353,6 +365,7 @@ extension ReaderWebtoonViewController {
             isScrolling = false
             checkInfiniteLoad()
         }
+        prefetchUpcomingPages()
     }
 
     // check if at the top or bottom to append the next/prev chapter
@@ -380,6 +393,41 @@ extension ReaderWebtoonViewController {
                 }
             }
         }
+    }
+
+    /// Prefetch upcoming page images into Nuke's memory/disk cache
+    /// so they display instantly when scrolled into view
+    private func prefetchUpcomingPages() {
+        guard let currentPath = getCurrentPagePath(pos: .bottom) else { return }
+        let currentSection = currentPath.section
+        let currentItem = currentPath.item
+
+        var requests: [ImageRequest] = []
+        var remaining = Self.prefetchAheadCount
+
+        // Collect image URLs from upcoming pages
+        for section in currentSection..<pages.count {
+            let startItem = (section == currentSection) ? currentItem + 1 : 0
+            let sectionPages = pages[section]
+            for item in startItem..<sectionPages.count {
+                guard remaining > 0 else { break }
+                let page = sectionPages[item]
+                guard page.type == .imagePage, let urlString = page.imageURL, let url = URL(string: urlString) else { continue }
+                var urlRequest = URLRequest(url: url)
+                if let source = viewModel.source {
+                    // Use a basic request; the actual modified request will be used at display time
+                    urlRequest = URLRequest(url: url)
+                }
+                requests.append(ImageRequest(urlRequest: urlRequest))
+                remaining -= 1
+            }
+            guard remaining > 0 else { break }
+        }
+
+        guard !requests.isEmpty else { return }
+        imagePrefetcher?.stopPrefetching()
+        imagePrefetcher = ImagePrefetcher(requests: requests)
+        imagePrefetcher?.startPrefetching()
     }
 
     /// Prepend the previous chapter's pages

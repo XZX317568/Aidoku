@@ -27,8 +27,17 @@ struct Download: Equatable, Sendable, Codable {
     var progress: Int = 0
     var total: Int = 0
 
+    /// Download speed in bytes per second (transient, not persisted)
+    var speed: Double = 0
+    /// Estimated seconds remaining (transient, not persisted)
+    var estimatedTimeRemaining: TimeInterval?
+
     var manga: AidokuRunner.Manga
     var chapter: AidokuRunner.Chapter
+
+    enum CodingKeys: String, CodingKey {
+        case chapterIdentifier, status, progress, total, manga, chapter
+    }
 
     static func == (lhs: Download, rhs: Download) -> Bool {
         lhs.chapterIdentifier == rhs.chapterIdentifier

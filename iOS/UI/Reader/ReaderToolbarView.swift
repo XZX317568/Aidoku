@@ -23,11 +23,27 @@ class ReaderToolbarView: UIView {
     var totalPages: Int? {
         didSet { updatePageLabels() }
     }
+    /// Whether to show reading progress percentage
+    var showProgressPercentage: Bool {
+        get { UserDefaults.standard.bool(forKey: "Reader.showProgressPercentage") }
+        set { UserDefaults.standard.set(newValue, forKey: "Reader.showProgressPercentage") }
+    }
+    /// Whether to show reading time estimate
+    var showReadingTimeEstimate: Bool {
+        get { UserDefaults.standard.bool(forKey: "Reader.showReadingTimeEstimate") }
+        set { UserDefaults.standard.set(newValue, forKey: "Reader.showReadingTimeEstimate") }
+    }
+
+    /// Tracks page turn timestamps for speed calculation
+    private var pageTurnTimestamps: [Date] = []
+    /// Average seconds per page (default ~8s for manga)
+    private var averageSecondsPerPage: Double = 8.0
 
     let sliderView = ReaderSliderView()
     private let incognitoModeLabel = UILabel()
     private let currentPageLabel = UILabel()
     private let pagesLeftLabel = UILabel()
+    private let progressPercentageLabel = UILabel()
 
     private var cancellables: [AnyCancellable] = []
 
@@ -59,6 +75,12 @@ class ReaderToolbarView: UIView {
         pagesLeftLabel.textAlignment = .right
         addSubview(pagesLeftLabel)
 
+        progressPercentageLabel.font = .monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+        progressPercentageLabel.textColor = .tintColor
+        progressPercentageLabel.textAlignment = .center
+        progressPercentageLabel.isHidden = !showProgressPercentage
+        addSubview(progressPercentageLabel)
+
         sliderView.semanticContentAttribute = .playback // for rtl languages
         addSubview(sliderView)
     }
@@ -67,6 +89,7 @@ class ReaderToolbarView: UIView {
         incognitoModeLabel.translatesAutoresizingMaskIntoConstraints = false
         currentPageLabel.translatesAutoresizingMaskIntoConstraints = false
         pagesLeftLabel.translatesAutoresizingMaskIntoConstraints = false
+        progressPercentageLabel.translatesAutoresizingMaskIntoConstraints = false
         sliderView.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
@@ -78,6 +101,9 @@ class ReaderToolbarView: UIView {
 
             pagesLeftLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
             pagesLeftLabel.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            progressPercentageLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
+            progressPercentageLabel.topAnchor.constraint(equalTo: sliderView.bottomAnchor, constant: 2),
 
             sliderView.heightAnchor.constraint(equalToConstant: 12),
             sliderView.topAnchor.constraint(equalTo: topAnchor, constant: 10),
@@ -122,6 +148,7 @@ class ReaderToolbarView: UIView {
         guard var currentPage = currentPage, let totalPages = totalPages else {
             currentPageLabel.text = nil
             pagesLeftLabel.text = nil
+            progressPercentageLabel.text = nil
             return
         }
 
@@ -135,11 +162,68 @@ class ReaderToolbarView: UIView {
         if pagesLeft < 1 {
             pagesLeftLabel.text = nil
         } else {
-            pagesLeftLabel.text = pagesLeft == 1
+            var pagesText = pagesLeft == 1
                 ? NSLocalizedString("ONE_PAGE_LEFT", comment: "")
                 : String(format: NSLocalizedString("%i_PAGES_LEFT", comment: ""), pagesLeft)
+
+            // Append time estimate if enabled
+            if showReadingTimeEstimate {
+                let estimatedSeconds = Double(pagesLeft) * averageSecondsPerPage
+                let timeText = formatTimeEstimate(seconds: estimatedSeconds)
+                pagesText += " · " + timeText
+            }
+            pagesLeftLabel.text = pagesText
         }
         incognitoModeLabel.text = NSLocalizedString("INCOGNITO_MODE")
+
+        // Update progress percentage
+        let progress = totalPages > 1 ? Double(currentPage - 1) / Double(totalPages - 1) * 100 : 100
+        progressPercentageLabel.text = String(format: "%.0f%%", progress)
+        progressPercentageLabel.isHidden = !showProgressPercentage
+
+        // Record page turn for speed tracking
+        recordPageTurn()
+    }
+
+    /// Records a page turn timestamp and recalculates reading speed
+    private func recordPageTurn() {
+        let now = Date()
+        pageTurnTimestamps.append(now)
+        // Keep only last 20 page turns for speed calculation
+        if pageTurnTimestamps.count > 20 {
+            pageTurnTimestamps.removeFirst(pageTurnTimestamps.count - 20)
+        }
+        // Calculate average time per page from recent turns
+        if pageTurnTimestamps.count >= 3 {
+            var totalInterval: TimeInterval = 0
+            for i in 1..<pageTurnTimestamps.count {
+                totalInterval += pageTurnTimestamps[i].timeIntervalSince(pageTurnTimestamps[i - 1])
+            }
+            let avg = totalInterval / Double(pageTurnTimestamps.count - 1)
+            // Only update if reasonable (between 1s and 120s per page)
+            if avg > 1 && avg < 120 {
+                averageSecondsPerPage = avg
+            }
+        }
+    }
+
+    /// Formats seconds into a human-readable time estimate
+    private func formatTimeEstimate(seconds: Double) -> String {
+        let totalMinutes = Int(ceil(seconds / 60))
+        if totalMinutes < 1 {
+            return "<1 min"
+        } else if totalMinutes == 1 {
+            return "~1 min"
+        } else if totalMinutes < 60 {
+            return "~\(totalMinutes) min"
+        } else {
+            let hours = totalMinutes / 60
+            let mins = totalMinutes % 60
+            if mins == 0 {
+                return "~\(hours)h"
+            }
+            return "~\(hours)h \(mins)m"
+        }
     }
 
     func updateSliderPosition() {

@@ -696,27 +696,44 @@ extension TrackerManager {
             var stillPending: [PageTrackUpdate] = []
             var successes = 0
 
-            for var update in trackingState.pendingPageUpdates {
-                guard let tracker = TrackerManager.getTracker(id: update.trackerId) as? PageTracker else {
-                    continue // tracker no longer exists, remove the update
+            // Group updates by tracker for concurrent processing across different trackers
+            let grouped = Dictionary(grouping: trackingState.pendingPageUpdates) { $0.trackerId }
+
+            await withTaskGroup(of: (successes: Int, failed: [PageTrackUpdate]).self) { group in
+                for (trackerId, updates) in grouped {
+                    group.addTask {
+                        guard let tracker = TrackerManager.getTracker(id: trackerId) as? PageTracker else {
+                            return (0, []) // tracker no longer exists, drop updates
+                        }
+                        var localSuccesses = 0
+                        var localFailed: [PageTrackUpdate] = []
+                        for var update in updates {
+                            do {
+                                try await tracker.setProgress(
+                                    trackId: update.trackId,
+                                    chapter: update.chapter,
+                                    progress: update.progress
+                                )
+                                if update.failCount > 0 {
+                                    localSuccesses += 1
+                                }
+                            } catch {
+                                LogManager.logger.error("Failed to set tracker progress (\(tracker.id)): \(error)")
+                                update.failCount += 1
+                                if update.failCount >= 3 {
+                                    LogManager.logger.warn("Removing failed page update after 3 attempts: \(update)")
+                                    continue
+                                }
+                                localFailed.append(update)
+                            }
+                        }
+                        return (localSuccesses, localFailed)
+                    }
                 }
-                do {
-                    try await tracker.setProgress(
-                        trackId: update.trackId,
-                        chapter: update.chapter,
-                        progress: update.progress
-                    )
-                    if update.failCount > 0 {
-                        successes += 1
-                    }
-                } catch {
-                    LogManager.logger.error("Failed to set tracker progress (\(tracker.id)): \(error)")
-                    update.failCount += 1
-                    if update.failCount >= 3 {
-                        LogManager.logger.warn("Removing failed page update after 3 attempts: \(update)")
-                        continue // remove update after three failed attempts (initial + two retries)
-                    }
-                    stillPending.append(update)
+
+                for await result in group {
+                    successes += result.successes
+                    stillPending.append(contentsOf: result.failed)
                 }
             }
 

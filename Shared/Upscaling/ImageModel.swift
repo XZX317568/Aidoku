@@ -13,13 +13,26 @@ import Vision
 
 class ImageModel: ImageProcessingModel {
     private let model: MLModel
+    /// Cached VNCoreMLModel to avoid expensive recreation on every image
+    private var cachedVNModel: VNCoreMLModel?
 
     required init?(model: MLModel, config: [String: Any]) {
         self.model = model
+        // Pre-create the VNCoreMLModel at init time
+        self.cachedVNModel = try? VNCoreMLModel(for: model)
     }
 
     func process(_ image: CGImage) async -> CGImage? {
-        guard let vnModel = try? VNCoreMLModel(for: model) else { return nil }
+        // Use cached VNCoreMLModel, fall back to creating one if needed
+        let vnModel: VNCoreMLModel
+        if let cached = cachedVNModel {
+            vnModel = cached
+        } else if let created = try? VNCoreMLModel(for: model) {
+            cachedVNModel = created
+            vnModel = created
+        } else {
+            return nil
+        }
 
         let request = VNCoreMLRequest(model: vnModel)
         request.imageCropAndScaleOption = .scaleFill

@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import Nuke
 
 class OldMangaCollectionViewController: BaseCollectionViewController {
     static let itemSpacing: CGFloat = 12
@@ -31,6 +32,7 @@ class OldMangaCollectionViewController: BaseCollectionViewController {
         collectionView.register(MangaGridCell.self, forCellWithReuseIdentifier: "MangaGridCell")
         collectionView.register(MangaListCell.self, forCellWithReuseIdentifier: "MangaListCell")
         collectionView.dataSource = dataSource
+        collectionView.prefetchDataSource = self
         collectionView.contentInset = UIEdgeInsets(
             top: 0,
             left: 0,
@@ -402,5 +404,25 @@ extension OldMangaCollectionViewController {
 
         self.collectionView.scrollToItem(at: newFocusedndexPath, at: .centeredVertically, animated: true)
         self.focusedIndexPath = newFocusedndexPath
+    }
+}
+
+// MARK: - Prefetching
+extension OldMangaCollectionViewController: UICollectionViewDataSourcePrefetching {
+    func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
+        // Prefetch cover images for upcoming cells to reduce visible loading
+        let requests: [ImageRequest] = indexPaths.compactMap { indexPath in
+            guard let info = dataSource.itemIdentifier(for: indexPath), let coverUrl = info.coverUrl else { return nil }
+            return ImageRequest(
+                url: coverUrl,
+                processors: [DownsampleProcessor(width: 200)]
+            )
+        }
+        guard !requests.isEmpty else { return }
+        ImagePrefetcher(requests: requests).startPrefetching()
+    }
+
+    func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
+        // Nuke's ImagePrefetcher handles cancellation automatically when deallocated
     }
 }

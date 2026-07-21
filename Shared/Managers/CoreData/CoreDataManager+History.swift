@@ -134,17 +134,22 @@ extension CoreDataManager {
     func removeHistory(chapters: [Chapter]) async {
         await container.performBackgroundTask { context in
             do {
+                // Use batch delete for better performance with multiple chapters
                 for chapter in chapters {
-                    if let object = self.getHistory(
-                        sourceId: chapter.sourceId,
-                        mangaId: chapter.mangaId,
-                        chapterId: chapter.id,
-                        context: context
-                    ) {
-                        context.delete(object)
+                    let request = HistoryObject.fetchRequest()
+                    request.predicate = NSPredicate(
+                        format: "chapterId == %@ AND mangaId == %@ AND sourceId == %@",
+                        chapter.id, chapter.mangaId, chapter.sourceId
+                    )
+                    let deleteRequest = NSBatchDeleteRequest(fetchRequest: request as! NSFetchRequest<NSFetchRequestResult>)
+                    deleteRequest.resultType = .resultTypeObjectIDs
+                    let result = try context.execute(deleteRequest) as? NSBatchDeleteResult
+                    // Merge changes into the context
+                    if let objectIDs = result?.result as? [NSManagedObjectID], !objectIDs.isEmpty {
+                        let changes: [AnyHashable: Any] = [NSDeletedObjectsKey: objectIDs]
+                        NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes, into: [context])
                     }
                 }
-                try context.save()
             } catch {
                 LogManager.logger.error("CoreDataManager.removeHistory(chapters:): \(error.localizedDescription)")
             }
@@ -154,17 +159,19 @@ extension CoreDataManager {
     func removeHistory(sourceId: String, mangaId: String, chapterIds: [String]) async {
         await container.performBackgroundTask { context in
             do {
-                for chapterId in chapterIds {
-                    if let object = self.getHistory(
-                        sourceId: sourceId,
-                        mangaId: mangaId,
-                        chapterId: chapterId,
-                        context: context
-                    ) {
-                        context.delete(object)
-                    }
+                // Use batch delete with IN predicate for better performance
+                let request = HistoryObject.fetchRequest()
+                request.predicate = NSPredicate(
+                    format: "sourceId == %@ AND mangaId == %@ AND chapterId IN %@",
+                    sourceId, mangaId, chapterIds
+                )
+                let deleteRequest = NSBatchDeleteRequest(fetchRequest: request as! NSFetchRequest<NSFetchRequestResult>)
+                deleteRequest.resultType = .resultTypeObjectIDs
+                let result = try context.execute(deleteRequest) as? NSBatchDeleteResult
+                if let objectIDs = result?.result as? [NSManagedObjectID], !objectIDs.isEmpty {
+                    let changes: [AnyHashable: Any] = [NSDeletedObjectsKey: objectIDs]
+                    NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes, into: [context])
                 }
-                try context.save()
             } catch {
                 LogManager.logger.error("CoreDataManager.removeHistory(sourceId:mangaId:chapterIds:): \(error.localizedDescription)")
             }
@@ -225,6 +232,20 @@ extension CoreDataManager {
 
             let inLibrary = self.hasLibraryManga(sourceId: sourceId, mangaId: mangaId, context: context)
 
+            // Batch-fetch all chapters for this manga upfront to avoid N+1 queries
+            var chapterLookup: [String: ChapterObject] = [:]
+            if inLibrary {
+                let chapterRequest = ChapterObject.fetchRequest()
+                chapterRequest.predicate = NSPredicate(
+                    format: "manga.id == %@ AND manga.sourceId == %@",
+                    mangaId, sourceId
+                )
+                let allChapters = (try? context.fetch(chapterRequest)) ?? []
+                for ch in allChapters {
+                    chapterLookup[ch.id] = ch
+                }
+            }
+
             for history in objects {
                 // remove duplicate read history objects for the same chapter
                 if historyDict[history.chapterId] != nil {
@@ -232,14 +253,9 @@ extension CoreDataManager {
                     context.delete(history)
                     continue
                 }
-                // link history to chapter if link is missing
+                // link history to chapter if link is missing (using pre-fetched lookup)
                 if inLibrary && history.chapter == nil {
-                    if let chapter = self.getChapter(
-                        sourceId: sourceId,
-                        mangaId: mangaId,
-                        chapterId: history.chapterId,
-                        context: context
-                    ) {
+                    if let chapter = chapterLookup[history.chapterId] {
                         history.chapter = chapter
                         needsSave = true
                     }

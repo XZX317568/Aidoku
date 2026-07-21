@@ -36,6 +36,28 @@ struct UpscaleModelListView: View {
                 }
                 .foregroundStyle(.primary)
 
+                // Built-in native enhancer (no download required)
+                Button {
+                    enabledModel = UpscaleProcessor.nativeModelIdentifier
+                    ModelManager.shared.setEnabledModel(fileName: UpscaleProcessor.nativeModelIdentifier)
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(NSLocalizedString("NATIVE_ENHANCE"))
+                                .foregroundStyle(.primary)
+                            Text(NSLocalizedString("NATIVE_ENHANCE_INFO"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if enabledModel == UpscaleProcessor.nativeModelIdentifier {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                }
+                .foregroundStyle(.primary)
+
                 ForEach(models, id: \.file) { model in
                     Button {
                         enabledModel = model.file

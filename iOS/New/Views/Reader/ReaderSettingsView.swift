@@ -132,6 +132,27 @@ struct ReaderSettingsView: View {
                     )
                     SettingView(
                         setting: .init(
+                            key: "Reader.showProgressPercentage",
+                            title: NSLocalizedString("SHOW_PROGRESS_PERCENTAGE"),
+                            value: .toggle(.init())
+                        )
+                    )
+                    SettingView(
+                        setting: .init(
+                            key: "Reader.brightnessGesture",
+                            title: NSLocalizedString("BRIGHTNESS_GESTURE"),
+                            value: .toggle(.init())
+                        )
+                    )
+                    SettingView(
+                        setting: .init(
+                            key: "Reader.showReadingTimeEstimate",
+                            title: NSLocalizedString("SHOW_READING_TIME_ESTIMATE"),
+                            value: .toggle(.init())
+                        )
+                    )
+                    SettingView(
+                        setting: .init(
                             key: "Reader.backgroundColor",
                             title: NSLocalizedString("READER_BG_COLOR"),
                             value: .select(.init(

@@ -185,6 +185,11 @@ struct MangaDetailsHeaderView: View {
 
             tagsView
 
+            // series reading progress bar
+            if bookmarked && !(manga.chapters ?? chapters).isEmpty {
+                seriesProgressBar
+            }
+
             // read button
             Button {
                 onReadButtonPressed?()
@@ -437,6 +442,60 @@ struct MangaDetailsHeaderView: View {
                 )
             }
         }
+    }
+
+    @ViewBuilder
+    var seriesProgressBar: some View {
+        let totalChapters = (manga.chapters ?? chapters).count
+        let readCount = chaptersReadCount
+        if totalChapters > 0 && readCount > 0 {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("\(readCount)/\(totalChapters)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(Int(Double(readCount) / Double(totalChapters) * 100))%")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color(UIColor.tertiarySystemFill))
+                            .frame(height: 4)
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.accentColor)
+                            .frame(
+                                width: geometry.size.width * CGFloat(readCount) / CGFloat(totalChapters),
+                                height: 4
+                            )
+                    }
+                }
+                .frame(height: 4)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+        }
+    }
+
+    private var chaptersReadCount: Int {
+        let allChapters = manga.chapters ?? chapters
+        guard !allChapters.isEmpty else { return 0 }
+        let sourceId = manga.sourceKey
+        let mangaId = manga.key
+        var count = 0
+        for chapter in allChapters {
+            let (completed, _) = CoreDataManager.shared.getProgress(
+                sourceId: sourceId,
+                mangaId: mangaId,
+                chapterId: chapter.key
+            )
+            if completed {
+                count += 1
+            }
+        }
+        return count
     }
 
     func updateReadButtonText() {

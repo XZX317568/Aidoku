@@ -1630,11 +1630,22 @@ extension LibraryViewController {
 
 // MARK: - Search Results
 extension LibraryViewController: UISearchResultsUpdating {
+    private static var searchDebounceTask: Task<Void, Never>?
+
     func updateSearchResults(for searchController: UISearchController) {
         guard searchController.searchBar.text != lastSearch else { return }
         lastSearch = searchController.searchBar.text
-        Task {
-            await viewModel.search(query: searchController.searchBar.text ?? "")
+        let query = searchController.searchBar.text ?? ""
+
+        // Debounce search to avoid excessive UI updates during rapid typing
+        Self.searchDebounceTask?.cancel()
+        Self.searchDebounceTask = Task { @MainActor in
+            // Short delay for debouncing; empty query executes immediately
+            if !query.isEmpty {
+                try? await Task.sleep(nanoseconds: 200_000_000) // 200ms
+            }
+            guard !Task.isCancelled else { return }
+            await viewModel.search(query: query)
             updateDataSource()
         }
     }

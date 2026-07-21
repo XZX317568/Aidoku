@@ -500,6 +500,8 @@
 "UPSCALE_MAX_IMAGE_HEIGHT" = "最大图片高度";
 "UPSCALE_MAX_IMAGE_HEIGHT_TEXT" = "大于最大图片高度的图片将不会进行放大处理。";
 "ENABLED_MODEL" = "已启用模型";
+"NATIVE_ENHANCE" = "内置增强器";
+"NATIVE_ENHANCE_INFO" = "Lanczos 放大 + 锐化，无需下载模型。";
 "AVAILABLE_MODELS" = "可用模型";
 "NO_AVAILABLE_MODELS" = "无可用模型";
 "NO_AVAILABLE_MODELS_TEXT" = "获取可用模型失败。请检查网络连接并确保您的应用运行最新版本。";
@@ -661,6 +663,14 @@
 "LEGACY_SOURCE_LIST_WARNING" = "警告：旧版图源列表";
 "LEGACY_SOURCE_LIST_WARNING_INFO" = "您当前已配置旧版图源列表。此格式已过时，将在 Aidoku 的未来版本中停止支持。虽然目前仍可正常使用，但建议您寻找替代方案，并在「设置」>「图源列表」中进行配置。";
 "HIDE_BARS_ON_SWIPE" = "滑动时隐藏栏";
+"SHOW_PROGRESS_PERCENTAGE" = "显示阅读进度百分比";
+"BRIGHTNESS_GESTURE" = "亮度调节手势";
+"SHOW_READING_TIME_ESTIMATE" = "显示剩余阅读时间";
+"AUTO_RETRY_FAILED_DOWNLOADS" = "自动重试失败的下载";
+"DOWNLOAD_NEXT" = "下载后续章节";
+"CHAPTERS" = "章节";
+"SEARCH_CONCURRENT_SOURCES" = "并发搜索图源数";
+"CONTINUE_READING_SECTION" = "继续阅读";
 "IMPORT_BACKUP" = "导入备份";
 "SYNC_WITH_TRACKER" = "与追踪器同步";
 "SYNC_WITH_TRACKER_INFO_%i" = "追踪器检测到 %i 个章节已阅读。您要将这些章节标记为已读吗？";

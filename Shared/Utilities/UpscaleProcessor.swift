@@ -18,6 +18,9 @@ import ImageIO
 #endif
 
 struct UpscaleProcessor: ImageProcessing {
+    /// Special model file name indicating the built-in native enhancer
+    static let nativeModelIdentifier = "__native_enhance__"
+
     var identifier: String {
         "com.github.Aidoku/Aidoku/upscale"
     }
@@ -26,7 +29,7 @@ struct UpscaleProcessor: ImageProcessing {
         guard let cgImage = image.cgImage else { return image }
 
         // ensure an upscaling model is enabled
-        guard ModelManager.shared.getEnabledModelFileName() != nil else {
+        guard let enabledModel = ModelManager.shared.getEnabledModelFileName() else {
             return image
         }
 
@@ -34,6 +37,19 @@ struct UpscaleProcessor: ImageProcessing {
         let maxHeight = UserDefaults.standard.integer(forKey: "Reader.upscaleMaxHeight")
         guard cgImage.height < maxHeight else { return image }
 
+        // Use built-in native enhancer (no model download required)
+        if enabledModel == Self.nativeModelIdentifier {
+            guard let output = NativeEnhanceModel.shared.process(cgImage) else {
+                return image
+            }
+#if os(iOS) || os(tvOS)
+            return PlatformImage(cgImage: output, scale: UIScreen.main.scale, orientation: image.imageOrientation)
+#else
+            return PlatformImage(cgImage: output, size: .init(width: image.size.width, height: image.size.height))
+#endif
+        }
+
+        // Use CoreML model-based upscaling
         return BlockingTask {
             let model: ImageProcessingModel
             do {

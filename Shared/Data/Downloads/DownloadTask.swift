@@ -34,11 +34,21 @@ actor DownloadTask: Identifiable {
 
     private(set) var running: Bool = false
 
+    // Speed tracking
+    private var downloadStartTime: Date?
+    private var bytesDownloaded: Int64 = 0
+    private var recentSpeedSamples: [(date: Date, bytes: Int64)] = []
+
     private static let maxConcurrentPageTasks = 5
 
     private static let maxPageRetries = 3
     private static let retryBaseDelay: TimeInterval = 1
     private static let maxRetryDelay: TimeInterval = 60
+
+    /// Maximum number of times a failed chapter will be re-queued
+    private static let maxChapterRetries = 2
+    /// Tracks retry counts per chapter
+    private var chapterRetryCounts: [ChapterIdentifier: Int] = [:]
 
     enum DownloadError: Error {
         case pageProcessorFailed
@@ -287,7 +297,7 @@ extension DownloadTask {
                                 LogManager.logger.error("Error writing downloaded image: \(error)")
                             }
                         }
-                        await self.incrementProgress(for: download.chapterIdentifier, failed: data == nil)
+                        await self.incrementProgress(for: download.chapterIdentifier, failed: data == nil, bytesAdded: Int64(data?.count ?? 0))
                     }
                 }
             }
@@ -306,7 +316,7 @@ extension DownloadTask {
                         LogManager.logger.error("Error writing downloaded image: \(error)")
                     }
                 }
-                await self.incrementProgress(for: download.chapterIdentifier, failed: data == nil)
+                await self.incrementProgress(for: download.chapterIdentifier, failed: data == nil, bytesAdded: Int64(data?.count ?? 0))
             }
         }
 
@@ -424,12 +434,38 @@ extension DownloadTask {
         }
     }
 
-    private func incrementProgress(for id: ChapterIdentifier, failed: Bool = false) async {
+    private func incrementProgress(for id: ChapterIdentifier, failed: Bool = false, bytesAdded: Int64 = 0) async {
         guard let downloadIndex = downloads.firstIndex(where: { $0.chapterIdentifier == id }) else {
             return
         }
         currentPage += 1
         downloads[downloadIndex].progress = currentPage
+
+        // Track speed
+        if bytesAdded > 0 {
+            bytesDownloaded += bytesAdded
+            let now = Date()
+            recentSpeedSamples.append((date: now, bytes: bytesDownloaded))
+            // Keep only samples from the last 10 seconds
+            recentSpeedSamples.removeAll { now.timeIntervalSince($0.date) > 10 }
+
+            // Calculate speed from samples
+            if let first = recentSpeedSamples.first, recentSpeedSamples.count >= 2 {
+                let elapsed = now.timeIntervalSince(first.date)
+                if elapsed > 0.5 {
+                    let speed = Double(bytesDownloaded - first.bytes) / elapsed
+                    downloads[downloadIndex].speed = speed
+
+                    // Estimate time remaining based on average page size
+                    let pagesLeft = pages.count - currentPage
+                    if currentPage > 0, speed > 0 {
+                        let avgPageSize = Double(bytesDownloaded) / Double(currentPage)
+                        downloads[downloadIndex].estimatedTimeRemaining = (avgPageSize * Double(pagesLeft)) / speed
+                    }
+                }
+            }
+        }
+
         let download = downloads[downloadIndex]
         Task {
             await delegate?.downloadProgressChanged(download: download)
@@ -446,8 +482,39 @@ extension DownloadTask {
         let tmpDirectory = cache.tmpDirectory(for: download.chapterIdentifier)
 
         if failedPages == pages.count {
-            // the entire chapter failed to download, skip adding to cache and cancel
+            // the entire chapter failed to download
             tmpDirectory.removeItem()
+
+            // Auto-retry failed chapters if enabled and retry limit not reached
+            let autoRetryEnabled = UserDefaults.standard.bool(forKey: "Downloads.autoRetryFailed")
+            let retryCount = chapterRetryCounts[download.chapterIdentifier, default: 0]
+            if autoRetryEnabled && retryCount < Self.maxChapterRetries {
+                chapterRetryCounts[download.chapterIdentifier] = retryCount + 1
+                LogManager.logger.warn(
+                    "Chapter failed, scheduling retry \(retryCount + 1)/\(Self.maxChapterRetries): \(download.chapter.formattedTitle())"
+                )
+                // Re-queue the download with a delay
+                var retryDownload = download
+                retryDownload.status = .queued
+                retryDownload.progress = 0
+                retryDownload.total = 0
+                retryDownload.speed = 0
+                retryDownload.estimatedTimeRemaining = nil
+                downloads.append(retryDownload)
+                if let downloadIndex = downloads.firstIndex(where: { $0.chapterIdentifier == download.chapterIdentifier && $0.status == .cancelled }) {
+                    downloads.remove(at: downloadIndex)
+                }
+                pages = []
+                currentPage = 0
+                failedPages = 0
+                bytesDownloaded = 0
+                recentSpeedSamples = []
+                // Wait before retrying
+                try? await Task.sleep(nanoseconds: UInt64(5 * 1_000_000_000))
+                await next()
+                return
+            }
+
             if let downloadIndex = downloads.firstIndex(where: { $0 == download }) {
                 downloads[downloadIndex].status = .cancelled
                 downloads.remove(at: downloadIndex)
@@ -499,6 +566,8 @@ extension DownloadTask {
         pages = []
         currentPage = 0
         failedPages = 0
+        bytesDownloaded = 0
+        recentSpeedSamples = []
         await next()
     }
 }

@@ -10,13 +10,67 @@ import SwiftUI
 struct DownloadQueueView: View {
     @State private var queue: [(sourceId: String, downloads: [Download])] = []
     @State private var progress: [ChapterIdentifier: (progress: Int, total: Int)] = [:]
+    @State private var downloadStats: [ChapterIdentifier: (speed: Double, eta: TimeInterval?)] = [:]
     @State private var isPaused = false
 
     @Environment(\.dismiss) private var dismiss
 
+    /// Total number of chapters across all queued downloads
+    private var totalChapters: Int {
+        queue.reduce(0) { $0 + $1.downloads.count }
+    }
+
+    /// Overall progress summary string
+    private var overallProgressText: String {
+        let completed = progress.values.reduce(0) { $0 + $1.progress }
+        let total = progress.values.reduce(0) { $0 + $1.total }
+        guard total > 0 else { return "" }
+        return String(format: NSLocalizedString("%i_OF_%i"), completed, total)
+    }
+
+    /// Aggregate download speed across all active downloads
+    private var aggregateSpeed: Double {
+        downloadStats.values.reduce(0) { $0 + $1.speed }
+    }
+
+    /// Formatted speed string
+    private var speedText: String {
+        guard aggregateSpeed > 0 else { return "" }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowedUnits = [.useKB, .useMB]
+        return formatter.string(fromByteCount: Int64(aggregateSpeed)) + "/s"
+    }
+
     var body: some View {
         PlatformNavigationStack {
             List {
+                // Overall progress header
+                if !queue.isEmpty {
+                    Section {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("\(totalChapters) \(NSLocalizedString("CHAPTERS"))")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                if !speedText.isEmpty && !isPaused {
+                                    Text(speedText)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+                            }
+                            if !overallProgressText.isEmpty {
+                                Text(overallProgressText)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
                 if isPaused {
                     Section {
                         let padding: CGFloat = if #available(iOS 26.0, *) {
@@ -79,10 +133,20 @@ struct DownloadQueueView: View {
                                     }
                                     ProgressView(value: value)
                                         .progressViewStyle(.linear)
-                                    if let progress {
-                                        Text(String(format: NSLocalizedString("%i_OF_%i"), progress.progress, progress.total))
-                                            .foregroundStyle(.secondary)
-                                            .font(.footnote)
+                                    HStack {
+                                        if let progress {
+                                            Text(String(format: NSLocalizedString("%i_OF_%i"), progress.progress, progress.total))
+                                                .foregroundStyle(.secondary)
+                                                .font(.footnote)
+                                        }
+                                        Spacer()
+                                        // Show ETA for actively downloading items
+                                        if let stats = downloadStats[download.chapterIdentifier], let eta = stats.eta, eta > 0 {
+                                            Text(formatETA(eta))
+                                                .foregroundStyle(.tertiary)
+                                                .font(.footnote)
+                                                .monospacedDigit()
+                                        }
                                     }
                                 }
                             }
@@ -202,8 +266,15 @@ struct DownloadQueueView: View {
                     subscribeToProgress(download: download)
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .downloadProgressed)) { output in
+                guard let download = output.object as? Download else { return }
+                if download.speed > 0 {
+                    downloadStats[download.chapterIdentifier] = (download.speed, download.estimatedTimeRemaining)
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: .downloadFinished)) { output in
                 guard let download = output.object as? Download else { return }
+                downloadStats.removeValue(forKey: download.chapterIdentifier)
                 remove(download: download)
             }
             .onReceive(NotificationCenter.default.publisher(for: .downloadCancelled)) { output in
@@ -262,6 +333,22 @@ struct DownloadQueueView: View {
                     self.progress[download.chapterIdentifier] = (progress, total)
                 }
             }
+        }
+    }
+
+    /// Format estimated time remaining into a human-readable string
+    private func formatETA(_ seconds: TimeInterval) -> String {
+        let totalSeconds = Int(seconds)
+        if totalSeconds < 60 {
+            return "\(totalSeconds)s"
+        } else if totalSeconds < 3600 {
+            let mins = totalSeconds / 60
+            let secs = totalSeconds % 60
+            return secs > 0 ? "\(mins)m \(secs)s" : "\(mins)m"
+        } else {
+            let hours = totalSeconds / 3600
+            let mins = (totalSeconds % 3600) / 60
+            return "\(hours)h \(mins)m"
         }
     }
 }

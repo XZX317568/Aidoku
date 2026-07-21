@@ -31,6 +31,15 @@ actor ModelManager {
     private var imageModelCache: [String: ImageProcessingModel] = [:]
     private var cachedModelList: ModelList?
 
+    /// Directory for persisting compiled models to avoid recompilation on every launch
+    private func compiledModelsDirectory() throws -> URL {
+        let dir = FileManager.default.documentDirectory.appendingPathComponent("Models/Compiled")
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+
     // download a model from the server and save to local disk
     func downloadModel(_ model: ModelInfo) async throws {
         let url = URL(string: model.file, relativeTo: Self.modelListUrl)!
@@ -75,6 +84,10 @@ actor ModelManager {
         // remove metadata file
         if let metadataURL = try? metadataURL(forModelFile: fileName) {
             try? FileManager.default.removeItem(at: metadataURL)
+        }
+        // remove compiled model cache
+        if let compiledURL = try? compiledModelsDirectory().appendingPathComponent(fileName + ".mlmodelc") {
+            try? FileManager.default.removeItem(at: compiledURL)
         }
         // remove from cache
         imageModelCache[fileName] = nil
@@ -186,7 +199,25 @@ actor ModelManager {
         guard let fileName = getEnabledModelFileName() else {
             return nil
         }
+        // Native enhancer doesn't use a CoreML model
+        guard fileName != UpscaleProcessor.nativeModelIdentifier else {
+            return nil
+        }
         return try loadModel(info: .init(file: fileName))
+    }
+
+    /// Preload the enabled model into cache to avoid first-page delay.
+    /// Call this when the reader opens or when upscaling is toggled on.
+    func preloadEnabledModel() async {
+        guard UserDefaults.standard.bool(forKey: "Reader.upscaleImages") else { return }
+        guard let fileName = getEnabledModelFileName() else { return }
+        // Native enhancer is always ready, no preloading needed
+        guard fileName != UpscaleProcessor.nativeModelIdentifier else { return }
+        do {
+            _ = try getEnabledModel()
+        } catch {
+            LogManager.logger.error("Failed to preload upscaling model: \(error)")
+        }
     }
 }
 
@@ -244,18 +275,34 @@ extension ModelManager {
 
         guard let modelType = info.type else { return nil }
 
-        // load coreml model
-        let compiledUrl = try MLModel.compileModel(at: fileURL)
-        let mlModel = try MLModel(contentsOf: compiledUrl)
+        // Use persistent compiled model cache to avoid recompilation on every launch
+        let compiledDir = try compiledModelsDirectory()
+        var compiledUrl: URL
+        let expectedCompiledPath = compiledDir.appendingPathComponent(fileName + ".mlmodelc")
+        if FileManager.default.fileExists(atPath: expectedCompiledPath.path) {
+            compiledUrl = expectedCompiledPath
+        } else {
+            let tempCompiledUrl = try MLModel.compileModel(at: fileURL)
+            // Move compiled model to persistent cache directory
+            try? FileManager.default.moveItem(at: tempCompiledUrl, to: expectedCompiledPath)
+            compiledUrl = FileManager.default.fileExists(atPath: expectedCompiledPath.path)
+                ? expectedCompiledPath
+                : tempCompiledUrl
+        }
+
+        // Configure model to use all available compute units (CPU + GPU + Neural Engine)
+        let config = MLModelConfiguration()
+        config.computeUnits = .all
+        let mlModel = try MLModel(contentsOf: compiledUrl, configuration: config)
         let model: ImageProcessingModel?
 
-        let config = info.config?.compactMapValues { $0.toRaw() } ?? [:]
+        let modelConfig = info.config?.compactMapValues { $0.toRaw() } ?? [:]
 
         switch modelType.lowercased() {
             case "multiarray":
-                model = MultiArrayModel(model: mlModel, config: config)
+                model = MultiArrayModel(model: mlModel, config: modelConfig)
             case "image":
-                model = ImageModel(model: mlModel, config: config)
+                model = ImageModel(model: mlModel, config: modelConfig)
             default:
                 model = nil
         }

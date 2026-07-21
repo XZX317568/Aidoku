@@ -112,19 +112,62 @@ class MultiArrayModel: ImageProcessingModel {
             }
         }
 
-        // feed image block arrays into the model
+        // feed image block arrays into the model with parallel prediction
         let predictionStream = AsyncStream<(Int, MLMultiArray)> { [inputName, outputName] continuation in
             Task.detached {
+                // Process predictions in parallel batches for better multi-core utilization
+                let batchSize = min(poolSize, 4)
+                var pendingBatch: [(Int, MLMultiArray)] = []
+
                 for await (i, multi) in multiArrayStream {
-                    var buffer = multi
-                    if let prediction = try? self.mlmodel.prediction(inputName: inputName, outputName: outputName, input: buffer) {
-                        buffer = prediction
-                    } else {
-                        LogManager.logger.error("Failed to get output from multiarray model")
+                    pendingBatch.append((i, multi))
+
+                    if pendingBatch.count >= batchSize {
+                        // Process batch in parallel
+                        let batch = pendingBatch
+                        pendingBatch = []
+                        await withTaskGroup(of: (Int, MLMultiArray, MLMultiArray).self) { group in
+                            for (idx, inputBuffer) in batch {
+                                group.addTask {
+                                    var outputBuffer = inputBuffer
+                                    if let prediction = try? self.mlmodel.prediction(inputName: inputName, outputName: outputName, input: inputBuffer) {
+                                        outputBuffer = prediction
+                                    } else {
+                                        LogManager.logger.error("Failed to get output from multiarray model")
+                                    }
+                                    return (idx, inputBuffer, outputBuffer)
+                                }
+                            }
+                            for await (idx, inputBuf, outputBuf) in group {
+                                continuation.yield((idx, outputBuf))
+                                returnBuffer(inputBuf)
+                            }
+                        }
                     }
-                    continuation.yield((i, buffer))
-                    returnBuffer(multi)
                 }
+
+                // Process remaining items in the last partial batch
+                if !pendingBatch.isEmpty {
+                    let batch = pendingBatch
+                    await withTaskGroup(of: (Int, MLMultiArray, MLMultiArray).self) { group in
+                        for (idx, inputBuffer) in batch {
+                            group.addTask {
+                                var outputBuffer = inputBuffer
+                                if let prediction = try? self.mlmodel.prediction(inputName: inputName, outputName: outputName, input: inputBuffer) {
+                                    outputBuffer = prediction
+                                } else {
+                                    LogManager.logger.error("Failed to get output from multiarray model")
+                                }
+                                return (idx, inputBuffer, outputBuffer)
+                            }
+                        }
+                        for await (idx, inputBuf, outputBuf) in group {
+                            continuation.yield((idx, outputBuf))
+                            returnBuffer(inputBuf)
+                        }
+                    }
+                }
+
                 continuation.finish()
             }
         }

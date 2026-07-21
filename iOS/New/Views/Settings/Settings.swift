@@ -633,6 +633,11 @@ extension Settings {
             title: NSLocalizedString("ADVANCED"),
             value: .group(.init(items: [
                 .init(
+                    key: "Search.maxConcurrentSources",
+                    title: NSLocalizedString("SEARCH_CONCURRENT_SOURCES"),
+                    value: .stepper(.init(minimumValue: 1, maximumValue: 8))
+                ),
+                .init(
                     key: "Advanced.clearTrackedManga",
                     title: NSLocalizedString("CLEAR_TRACKED_MANGA"),
                     value: .button(.init())
@@ -693,6 +698,11 @@ extension Settings {
             .init(
                 key: "Downloads.parallel",
                 title: NSLocalizedString("PARALLEL_DOWNLOADS"),
+                value: .toggle(.init())
+            ),
+            .init(
+                key: "Downloads.autoRetryFailed",
+                title: NSLocalizedString("AUTO_RETRY_FAILED_DOWNLOADS"),
                 value: .toggle(.init())
             )
         ]

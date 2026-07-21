@@ -518,7 +518,43 @@ extension MangaView {
                         Label(NSLocalizedString("CANCEL_DOWNLOAD"), systemImage: "xmark")
                     }
                 }
+
+                // Download next N chapters quick action
+                if viewModel.source != nil && !viewModel.manga.isLocal() && !last && !secondSection {
+                    Menu(NSLocalizedString("DOWNLOAD_NEXT")) {
+                        ForEach([5, 10, 25], id: \.self) { count in
+                            Button {
+                                downloadNextChapters(from: index, count: count)
+                            } label: {
+                                Text(String(format: NSLocalizedString("%i_CHAPTERS"), count))
+                            }
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    /// Download the next N unread, not-yet-downloaded chapters starting from the given index
+    private func downloadNextChapters(from index: Int, count: Int) {
+        let downloadOnlyOnWifi = UserDefaults.standard.bool(forKey: "Library.downloadOnlyOnWifi")
+        guard !downloadOnlyOnWifi || Reachability.getConnectionType() == .wifi else {
+            showConnectionAlert = true
+            return
+        }
+        // Chapters are sorted newest-first, so "next" means going towards higher indices (older chapters)
+        let endIndex = min(index + count, viewModel.chapters.count)
+        let chaptersToDownload = viewModel.chapters[index..<endIndex].filter { chapter in
+            viewModel.downloadStatus[chapter.key] != .finished
+                && viewModel.downloadStatus[chapter.key] != .downloading
+                && viewModel.downloadStatus[chapter.key] != .queued
+        }
+        guard !chaptersToDownload.isEmpty else { return }
+        Task {
+            await DownloadManager.shared.download(
+                manga: viewModel.manga,
+                chapters: Array(chaptersToDownload)
+            )
         }
     }
 

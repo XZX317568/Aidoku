@@ -31,6 +31,12 @@ struct SourceHomeContentView: View {
     @State private var loadTask: Task<(), Never>?
     @State private var loadListingTask: Task<(), Never>?
 
+    /// In-memory cache for source home pages, keyed by source ID.
+    /// Persists across view lifecycle so switching tabs shows last data instantly.
+    private static var homeCache: [String: Home] = [:]
+    private static var homeCacheTimestamps: [String: Date] = [:]
+    private static let cacheValidity: TimeInterval = 300 // 5 minutes
+
     enum ListingLoadState {
         case loading
         case notLoading
@@ -210,7 +216,20 @@ struct SourceHomeContentView: View {
         .task {
             guard !hasLoaded else { return }
             hasLoaded = true
-            await reload(initial: true)
+            // Restore from cache instantly if available and still valid
+            if let cached = Self.homeCache[source.key],
+               let timestamp = Self.homeCacheTimestamps[source.key],
+               Date().timeIntervalSince(timestamp) < Self.cacheValidity {
+                home = cached
+                loading = false
+                homeFullyLoaded = true
+                // Refresh in background
+                Task {
+                    await reload(initial: true)
+                }
+            } else {
+                await reload(initial: true)
+            }
         }
         .environmentObject(path)
     }
@@ -280,6 +299,10 @@ struct SourceHomeContentView: View {
             withAnimation {
                 self.home = home
             }
+
+            // Store in memory cache for instant display on next tab switch
+            Self.homeCache[source.key] = home
+            Self.homeCacheTimestamps[source.key] = Date()
 
             // update stored component types for skeleton loading
             let storedComponentsKey = "\(source.key).homeComponents"

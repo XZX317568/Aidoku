@@ -54,7 +54,7 @@ extension SearchContentView.ViewModel {
         searchTask = Task {
             isLoading = true
             if delay {
-                try? await Task.sleep(nanoseconds: 3_000_000_000) // wait 1s
+                try? await Task.sleep(nanoseconds: 800_000_000) // debounce 800ms
             }
             guard !Task.isCancelled else { return }
             searchQuery = query
@@ -173,8 +173,8 @@ extension SearchContentView.ViewModel {
     }
 
     private func appendFetchedData(query: String, sources: [AidokuRunner.Source]) async {
-        // sources freeze if we run too many tasks concurrently, so we limit it
-        let maxConcurrentTasks = 3
+        // configurable concurrency: default 3, user can increase for faster multi-source search
+        let maxConcurrentTasks = max(1, UserDefaults.standard.integer(forKey: "Search.maxConcurrentSources"))
 
         await withTaskGroup(of: (AidokuRunner.Source, AidokuRunner.MangaPageResult?).self) { group in
             // add the initial tasks to the group

@@ -155,6 +155,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Reader.downsampleImages": false,
                 "Reader.upscaleImages": false,
                 "Reader.upscaleMaxHeight": 2000,
+                "Reader.nativeEnhanceSharpen": 0.5,
+                "Reader.nativeEnhanceDenoise": 0.0,
                 "Reader.cropBorders": false,
                 "Reader.disableQuickActions": false,
                 "Reader.disableDoubleTap": false,
@@ -203,7 +205,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Library.deleteDownloadAfterReading": false,
                 "Downloads.compress": true,
                 "Downloads.parallel": true,
-                "Downloads.background": true
+                "Downloads.background": true,
+
+                "Search.maxConcurrentSources": 3
             ]
         )
 
@@ -236,17 +240,25 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             let dataLoader: DataLoader = {
                 let config = URLSessionConfiguration.default
                 config.urlCache = nil
+                // Allow more concurrent connections for faster image loading
+                config.httpMaximumConnectionsPerHost = 8
+                config.timeoutIntervalForRequest = 30
                 return DataLoader(configuration: config)
             }()
             let dataCache = try? DataCache(name: "app.aidoku.Aidoku.datacache") // disk cache
             let imageCache = Nuke.ImageCache() // memory cache
             dataCache?.sizeLimit = 500 * 1024 * 1024
-            imageCache.costLimit = 100 * 1024 * 1024
+            // Dynamically set memory cache based on available RAM (up to 200MB)
+            let totalMemory = ProcessInfo.processInfo.physicalMemory
+            let dynamicCostLimit = min(200 * 1024 * 1024, Int(totalMemory / 8))
+            imageCache.costLimit = max(100 * 1024 * 1024, dynamicCostLimit)
             $0.dataCache = dataCache
             $0.imageCache = imageCache
             $0.dataLoader = dataLoader
             $0.dataCachePolicy = .storeOriginalData
             $0.isStoringPreviewsInMemoryCache = false
+            // Enable progressive image decoding for faster perceived loading
+            $0.isProgressiveDecodingEnabled = true
         }
 
         ImagePipeline.shared = pipeline

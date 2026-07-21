@@ -270,6 +270,7 @@
 		FB4EEBE227A5AB4E005081A3 /* MangaListSelectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4EEBE127A5AB4E005081A3 /* MangaListSelectionHeader.swift */; };
 		FB548C9B2F4CF07700F046A8 /* TrackerUnavailableItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB548C9A2F4CF07600F046A8 /* TrackerUnavailableItemView.swift */; };
 		FB55AF9E28AAA4E50083EFC3 /* ReaderToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55AF9D28AAA4E50083EFC3 /* ReaderToolbarView.swift */; };
+		FB55AF9E28AAA4E50083EFC4 /* ReaderBrightnessControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55AF9D28AAA4E50083EFC4 /* ReaderBrightnessControlView.swift */; };
 		FB55AFA028AAAD9E0083EFC3 /* UIToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55AF9F28AAAD9E0083EFC3 /* UIToolbar.swift */; };
 		FB55AFA328AAAEDF0083EFC3 /* ReaderPagedViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55AFA228AAAEDF0083EFC3 /* ReaderPagedViewController.swift */; };
 		FB55AFA528AAAEF70083EFC3 /* BaseViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55AFA428AAAEF70083EFC3 /* BaseViewController.swift */; };
@@ -397,6 +398,8 @@
 		FB7983A22E0074B90044BC71 /* PopupWebViewHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB7983A02E0074B80044BC71 /* PopupWebViewHandler.swift */; };
 		FB7983F92E0C663B000761A9 /* MultiArrayModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB7983F82E0C6639000761A9 /* MultiArrayModel.swift */; };
 		FB7983FA2E0C663B000761A9 /* MultiArrayModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB7983F82E0C6639000761A9 /* MultiArrayModel.swift */; };
+		FB7983FB2E0C663C000761A9 /* NativeEnhanceModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB7983FC2E0C663C000761A9 /* NativeEnhanceModel.swift */; };
+		FB7983FD2E0C663C000761A9 /* NativeEnhanceModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB7983FC2E0C663C000761A9 /* NativeEnhanceModel.swift */; };
 		FB7984112E0C8068000761A9 /* ModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB7984102E0C805D000761A9 /* ModelManager.swift */; };
 		FB7984122E0C8068000761A9 /* ModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB7984102E0C805D000761A9 /* ModelManager.swift */; };
 		FB7984142E0C9F21000761A9 /* UpscaleModelListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB7984132E0C9F1D000761A9 /* UpscaleModelListView.swift */; };
@@ -827,6 +830,7 @@
 		FB4EEBE127A5AB4E005081A3 /* MangaListSelectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MangaListSelectionHeader.swift; sourceTree = "<group>"; };
 		FB548C9A2F4CF07600F046A8 /* TrackerUnavailableItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerUnavailableItemView.swift; sourceTree = "<group>"; };
 		FB55AF9D28AAA4E50083EFC3 /* ReaderToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderToolbarView.swift; sourceTree = "<group>"; };
+		FB55AF9D28AAA4E50083EFC4 /* ReaderBrightnessControlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderBrightnessControlView.swift; sourceTree = "<group>"; };
 		FB55AF9F28AAAD9E0083EFC3 /* UIToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIToolbar.swift; sourceTree = "<group>"; };
 		FB55AFA228AAAEDF0083EFC3 /* ReaderPagedViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderPagedViewController.swift; sourceTree = "<group>"; };
 		FB55AFA428AAAEF70083EFC3 /* BaseViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BaseViewController.swift; sourceTree = "<group>"; };
@@ -924,6 +928,7 @@
 		FB79839D2DFF77360044BC71 /* CloudflareHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudflareHandler.swift; sourceTree = "<group>"; };
 		FB7983A02E0074B80044BC71 /* PopupWebViewHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupWebViewHandler.swift; sourceTree = "<group>"; };
 		FB7983F82E0C6639000761A9 /* MultiArrayModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiArrayModel.swift; sourceTree = "<group>"; };
+		FB7983FC2E0C663C000761A9 /* NativeEnhanceModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeEnhanceModel.swift; sourceTree = "<group>"; };
 		FB7984102E0C805D000761A9 /* ModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelManager.swift; sourceTree = "<group>"; };
 		FB7984132E0C9F1D000761A9 /* UpscaleModelListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpscaleModelListView.swift; sourceTree = "<group>"; };
 		FB7984172E0CB63F000761A9 /* ImageProcessingModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessingModel.swift; sourceTree = "<group>"; };
@@ -1317,6 +1322,7 @@
 				FB1F553128AFC9FD00CFE182 /* ReadingMode.swift */,
 				FBC1271C28ABDCB400B68FFC /* ReaderHoldingDelegate.swift */,
 				FB55AF9D28AAA4E50083EFC3 /* ReaderToolbarView.swift */,
+				FB55AF9D28AAA4E50083EFC4 /* ReaderBrightnessControlView.swift */,
 				FBFA43AC2799DD110065A445 /* ReaderSliderView.swift */,
 				FB1DD8582EF0491C0007FC78 /* LiquidLensView.swift */,
 			);
@@ -2051,6 +2057,7 @@
 				FB7984102E0C805D000761A9 /* ModelManager.swift */,
 				FB7984172E0CB63F000761A9 /* ImageProcessingModel.swift */,
 				FB7983F82E0C6639000761A9 /* MultiArrayModel.swift */,
+				FB7983FC2E0C663C000761A9 /* NativeEnhanceModel.swift */,
 				FB3DDF792E1317A800A64897 /* ImageModel.swift */,
 			);
 			path = Upscaling;
@@ -2747,6 +2754,7 @@
 				FB947D402EF33C7900FC6226 /* YearlyMonthChartView.swift in Sources */,
 				FB17005D2E39313C00DBC4E4 /* MangaViewController.swift in Sources */,
 				FB55AF9E28AAA4E50083EFC3 /* ReaderToolbarView.swift in Sources */,
+				FB55AF9E28AAA4E50083EFC4 /* ReaderBrightnessControlView.swift in Sources */,
 				FB0CAA5628A6BF8A0024561A /* NSPersistentContainer.swift in Sources */,
 				FB55AFAF28AAD40B0083EFC3 /* ReaderPageViewController.swift in Sources */,
 				04B48CF92CD6836100F719D0 /* ShikimoriTracker.swift in Sources */,
@@ -2770,6 +2778,7 @@
 				FB7983A12E0074B90044BC71 /* PopupWebViewHandler.swift in Sources */,
 				FB8E48DF2DC117A2002A3621 /* MangaView+ViewModel.swift in Sources */,
 				FB7983F92E0C663B000761A9 /* MultiArrayModel.swift in Sources */,
+				FB7983FB2E0C663C000761A9 /* NativeEnhanceModel.swift in Sources */,
 				FB662EEE2DA81A5C00007514 /* ChapterTableCell.swift in Sources */,
 				FB662EEF2DA81A5C00007514 /* MangaCoverPageView.swift in Sources */,
 				FB662EF02DA81A5C00007514 /* CloseButton.swift in Sources */,
@@ -3103,6 +3112,7 @@
 				FB4EEBCB27A35171005081A3 /* HistoryObject.swift in Sources */,
 				FB248CCC2EA58CEE00BECD2E /* KavitaModels.swift in Sources */,
 				FB7983FA2E0C663B000761A9 /* MultiArrayModel.swift in Sources */,
+				FB7983FD2E0C663C000761A9 /* NativeEnhanceModel.swift in Sources */,
 				FB9B9EB127F6559D009ED073 /* WasmStd.swift in Sources */,
 				FB0E1CCB288AE50700B67BA9 /* OAuthTracker.swift in Sources */,
 				FB5B43732ECBC78C00F06534 /* Array.swift in Sources */,

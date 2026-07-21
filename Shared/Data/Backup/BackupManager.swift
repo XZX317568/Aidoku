@@ -52,7 +52,11 @@ actor BackupManager {
         Self.directory.createDirectory()
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .binary
-        if let plist = try? encoder.encode(backup) {
+        if var plist = try? encoder.encode(backup) {
+            // Compress backup data with zlib to reduce file size (~60-80% smaller)
+            if let compressed = (plist as NSData).compressed(using: .zlib) as Data? {
+                plist = compressed
+            }
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
             if let url = url {

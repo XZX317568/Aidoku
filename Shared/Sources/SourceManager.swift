@@ -26,6 +26,9 @@ class SourceManager {
 
     private var loadSourcesTask: Task<(), Never>?
     private var loadSourceListsTask: Task<(), Never>?
+    /// Timestamp of last successful source list fetch for TTL caching
+    private var sourceListsLastFetched: Date = .distantPast
+    private static let sourceListsCacheTTL: TimeInterval = 3600 // 1 hour
 
     static let languageCodes = [
         "multi", "en", "ca", "de", "es", "fr", "id", "it", "pl", "pt-br", "vi", "tr", "ru", "ar", "zh", "zh-hans", "ja", "ko"
@@ -87,6 +90,10 @@ class SourceManager {
             await loadSourceListsTask.value
             self.loadSourceListsTask = nil
         }
+        // Skip network fetch if cache is still valid (TTL not expired) and not forced reload
+        if !reload, !sourceLists.isEmpty, Date().timeIntervalSince(sourceListsLastFetched) < Self.sourceListsCacheTTL {
+            return
+        }
         if reload {
             loadSourceListsTask = Task {
                 sourceLists = await withTaskGroup(of: SourceList?.self) { group in
@@ -103,6 +110,7 @@ class SourceManager {
                     }
                     return results
                 }
+                sourceListsLastFetched = Date()
                 loadSourceListLanguages()
                 NotificationCenter.default.post(name: .updateSourceLists, object: nil)
             }

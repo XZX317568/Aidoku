@@ -540,6 +540,8 @@
 "UPSCALE_MAX_IMAGE_HEIGHT" = "Maximum Image Height";
 "UPSCALE_MAX_IMAGE_HEIGHT_TEXT" = "Images larger than the maxmimum image height won't be upscaled.";
 "ENABLED_MODEL" = "Enabled Model";
+"NATIVE_ENHANCE" = "Built-in Enhancer";
+"NATIVE_ENHANCE_INFO" = "Lanczos upscale + sharpen. No download required.";
 "AVAILABLE_MODELS" = "Available Models";
 "NO_AVAILABLE_MODELS" = "No Available Models";
 "NO_AVAILABLE_MODELS_TEXT" = "Failed to fetch available models. Check your network connection and ensure your app is running the latest version.";
@@ -553,6 +555,14 @@
 "DISABLE_DOUBLE_TAP_ZOOM" = "Disable Double Tap Zoom";
 "LIVE_TEXT" = "Live Text";
 "HIDE_BARS_ON_SWIPE" = "Hide Bars on Swipe";
+"SHOW_PROGRESS_PERCENTAGE" = "Show Progress Percentage";
+"BRIGHTNESS_GESTURE" = "Brightness Gesture";
+"SHOW_READING_TIME_ESTIMATE" = "Show Reading Time Estimate";
+"AUTO_RETRY_FAILED_DOWNLOADS" = "Auto-Retry Failed Downloads";
+"DOWNLOAD_NEXT" = "Download Next";
+"CHAPTERS" = "chapters";
+"SEARCH_CONCURRENT_SOURCES" = "Concurrent Source Searches";
+"CONTINUE_READING_SECTION" = "Continue Reading";
 "READER_BG_COLOR" = "Background Color";
 "READER_BG_COLOR_SYSTEM" = "System";
 "READER_BG_COLOR_AUTO" = "Automatic";
