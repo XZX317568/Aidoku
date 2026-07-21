@@ -54,7 +54,7 @@ actor BackupManager {
         encoder.outputFormat = .binary
         if var plist = try? encoder.encode(backup) {
             // Compress backup data with zlib to reduce file size (~60-80% smaller)
-            if let compressed = (plist as NSData).compressed(using: .zlib) as Data? {
+            if let compressed = try? (plist as NSData).compressed(using: .zlib) as Data? {
                 plist = compressed
             }
             let dateFormatter = DateFormatter()

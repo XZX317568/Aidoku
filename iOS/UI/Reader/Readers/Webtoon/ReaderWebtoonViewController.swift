@@ -426,8 +426,9 @@ extension ReaderWebtoonViewController {
 
         guard !requests.isEmpty else { return }
         imagePrefetcher?.stopPrefetching()
-        imagePrefetcher = ImagePrefetcher(requests: requests)
-        imagePrefetcher?.startPrefetching()
+        let prefetcher = ImagePrefetcher()
+        prefetcher.startPrefetching(with: requests)
+        imagePrefetcher = prefetcher
     }
 
     /// Prepend the previous chapter's pages

@@ -58,6 +58,7 @@ class ReaderViewController: BaseObservingViewController {
     private var squeezeStartTime: Date?
     private let doubleSqueezeInterval: TimeInterval = 0.3
     private let longSqueezeThreshold: TimeInterval = 0.5
+    private var hasPrefetchedNextChapter = false
 
     private lazy var descriptionButtonController: UIHostingController<ReaderPageDescriptionButtonView> = {
         let buttonView = ReaderPageDescriptionButtonView(source: source, pages: [])
@@ -840,7 +841,6 @@ extension ReaderViewController: ReaderHoldingDelegate {
     }
 
     /// Prefetch the next chapter's page list in the background for faster chapter transitions
-    private var hasPrefetchedNextChapter = false
     private func prefetchNextChapter() {
         guard !hasPrefetchedNextChapter else { return }
         hasPrefetchedNextChapter = true

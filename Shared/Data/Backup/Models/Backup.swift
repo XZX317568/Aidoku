@@ -35,7 +35,7 @@ struct Backup: Codable, Hashable, Identifiable, Sendable {
         }
 
         // Try decompressing zlib-compressed backups
-        if let decompressed = (data as NSData).decompressed(using: .zlib) as Data? {
+        if let decompressed = try? (data as NSData).decompressed(using: .zlib) as Data? {
             data = decompressed
             if let backup = try? PropertyListDecoder().decode(Backup.self, from: data) {
                 return backup

@@ -419,7 +419,8 @@ extension OldMangaCollectionViewController: UICollectionViewDataSourcePrefetchin
             )
         }
         guard !requests.isEmpty else { return }
-        ImagePrefetcher(requests: requests).startPrefetching()
+        let prefetcher = ImagePrefetcher()
+        prefetcher.startPrefetching(with: requests)
     }
 
     func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
