@@ -320,14 +320,21 @@ def main():
     mlmodel.save(out_path)
     print(f"Saved CoreML model to: {out_path}")
 
-    # Zip the .mlpackage (it's a directory) for distribution
+    # Zip the .mlpackage (it's a directory) for distribution.
+    # IMPORTANT: archive entries must be at the TOP LEVEL (Manifest.json, Data/...)
+    # with NO wrapping directory, matching the official Aidoku model zips.
+    # Aidoku unzips into Models/<name>.mlpackage/, so a wrapping dir would nest wrongly.
     zip_out = out_path + ".zip"
     print(f"Zipping to: {zip_out}")
     with zipfile.ZipFile(zip_out, "w", zipfile.ZIP_STORED) as zf:
-        for root, _, files in os.walk(out_path):
+        for root, dirs, files in os.walk(out_path):
+            for d in dirs:
+                full = os.path.join(root, d)
+                arcname = os.path.relpath(full, out_path) + "/"
+                zf.writestr(arcname, "")
             for f in files:
                 full = os.path.join(root, f)
-                arcname = os.path.relpath(full, os.path.dirname(out_path))
+                arcname = os.path.relpath(full, out_path)
                 zf.write(full, arcname)
     print(f"Zip size: {os.path.getsize(zip_out) / 1024 / 1024:.1f} MB")
     print("DONE.")
