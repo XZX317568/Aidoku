@@ -79,7 +79,7 @@ class UNet1(nn.Module):
     def forward(self, x):
         x1 = self.conv1(x)
         x2 = self.conv1_down(x1)
-        x1 = F.pad(x1, (-4, -4, -4, -4))
+        x1 = x1[:, :, 4:-4, 4:-4]  # crop 4px border (was F.pad negative, unsupported by CoreML)
         x2 = F.leaky_relu(x2, 0.1, inplace=True)
         x2 = self.conv2(x2)
         x2 = self.conv2_up(x2)
@@ -110,11 +110,11 @@ class UNet2(nn.Module):
     def forward(self, x, alpha=1):
         x1 = self.conv1(x)
         x2 = self.conv1_down(x1)
-        x1 = F.pad(x1, (-16, -16, -16, -16))
+        x1 = x1[:, :, 16:-16, 16:-16]  # crop 16px border (was F.pad negative, unsupported by CoreML)
         x2 = F.leaky_relu(x2, 0.1, inplace=True)
         x2 = self.conv2(x2)
         x3 = self.conv2_down(x2)
-        x2 = F.pad(x2, (-4, -4, -4, -4))
+        x2 = x2[:, :, 4:-4, 4:-4]  # crop 4px border (was F.pad negative, unsupported by CoreML)
         x3 = F.leaky_relu(x3, 0.1, inplace=True)
         x3 = self.conv3(x3)
         x3 = self.conv3_up(x3)
