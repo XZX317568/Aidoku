@@ -537,120 +537,94 @@ extension MangaManager {
             var results: [Int: AidokuRunner.Manga] = [:]
             let progress = Progress(totalUnitCount: Int64(total))
 
-            // Parallelize network fetches with a sliding window for faster library refresh
-            let maxConcurrent = Self.maxConcurrentLibraryUpdateTasks
+            for manga in filteredManga {
+                guard !Task.isCancelled else { return results }
 
-            await withTaskGroup(of: (Manga, AidokuRunner.Manga?).self) { group in
-                var index = 0
-
-                // Seed initial tasks
-                for _ in 0..<min(maxConcurrent, filteredManga.count) {
-                    let manga = filteredManga[index]
-                    group.addTask {
-                        let newManga = try? await SourceManager.shared.source(for: manga.sourceId)?
-                            .getMangaUpdate(manga: manga.toNew(), needsDetails: updateMetadata, needsChapters: true)
-                        return (manga, newManga)
-                    }
-                    index += 1
-                }
-
-                // Process results and add new tasks as slots free up
-                while let (manga, newManga) = await group.next() {
-                    guard !Task.isCancelled else { return }
-
-                    if index < filteredManga.count {
-                        let nextManga = filteredManga[index]
-                        group.addTask {
-                            let updated = try? await SourceManager.shared.source(for: nextManga.sourceId)?
-                                .getMangaUpdate(manga: nextManga.toNew(), needsDetails: updateMetadata, needsChapters: true)
-                            return (nextManga, updated)
-                        }
-                        index += 1
-                    }
-
-                    guard let newManga else {
-                        completed += 1
-                        progress.completedUnitCount = Int64(completed)
-                        updateLibraryRefreshProgress(progress)
-                        continue
-                    }
-
-                    if updateMetadata {
-                        results[manga.hashValue] = newManga
-                    }
-
-                    let summary = await CoreDataManager.shared.container.performBackgroundTask { context -> NotificationManager.NewChaptersSummary? in
-                        guard
-                            let libraryObject = CoreDataManager.shared.getLibraryManga(
-                                sourceId: manga.sourceId,
-                                mangaId: manga.id,
-                                context: context
-                            ),
-                            let mangaObject = libraryObject.manga
-                        else {
-                            return nil
-                        }
-
-                        // update details
-                        if updateMetadata {
-                            mangaObject.load(from: newManga)
-                        }
-
-                        // update chapters
-                        guard let chapters = newManga.chapters, !chapters.isEmpty else { return nil }
-
-                        let newChapters = CoreDataManager.shared.setChapters(
-                            chapters,
-                            sourceId: manga.sourceId,
-                            mangaId: manga.id,
-                            context: context
-                        )
-                        var notifiableCount = 0
-                        if !newChapters.isEmpty {
-                            // add manga updates
-                            let scanlatorFilter = mangaObject.scanlatorFilter ?? []
-                            for chapter in newChapters
-                            where
-                                mangaObject.langFilter != nil ? chapter.lang == mangaObject.langFilter : true
-                                && !scanlatorFilter.isEmpty ? scanlatorFilter.contains(chapter.scanlator ?? "") : true
-                            {
-                                CoreDataManager.shared.createMangaUpdate(
-                                    sourceId: manga.sourceId,
-                                    mangaId: manga.id,
-                                    chapterObject: chapter,
-                                    context: context
-                                )
-                                notifiableCount += 1
-                            }
-                            libraryObject.lastChapter = chapters.compactMap { $0.dateUploaded }.max()
-                            libraryObject.lastUpdatedChapters = Date.now
-                        }
-
-                        if updateMetadata || !newChapters.isEmpty {
-                            libraryObject.lastUpdated = Date.now
-                        }
-
-                        if context.hasChanges {
-                            try? context.save()
-                        }
-
-                        guard notifiableCount > 0 else { return nil }
-                        let title = mangaObject.title.isEmpty ? (manga.title ?? "") : mangaObject.title
-                        return NotificationManager.NewChaptersSummary(
-                            mangaIdentifier: MangaIdentifier(sourceKey: manga.sourceId, mangaKey: manga.id),
-                            mangaTitle: title,
-                            chapterCount: notifiableCount
-                        )
-                    }
-
-                    if notificationsEnabled, let summary {
-                        pendingNotifications.append(summary)
-                    }
-
+                guard
+                    let newManga = try? await SourceManager.shared.source(for: manga.sourceId)?
+                        .getMangaUpdate(manga: manga.toNew(), needsDetails: updateMetadata, needsChapters: true)
+                else {
                     completed += 1
                     progress.completedUnitCount = Int64(completed)
                     updateLibraryRefreshProgress(progress)
+                    continue
                 }
+
+                if updateMetadata {
+                    results[manga.hashValue] = newManga
+                }
+
+                let summary = await CoreDataManager.shared.container.performBackgroundTask { context -> NotificationManager.NewChaptersSummary? in
+                    guard
+                        let libraryObject = CoreDataManager.shared.getLibraryManga(
+                            sourceId: manga.sourceId,
+                            mangaId: manga.id,
+                            context: context
+                        ),
+                        let mangaObject = libraryObject.manga
+                    else {
+                        return nil
+                    }
+
+                    // update details
+                    if updateMetadata {
+                        mangaObject.load(from: newManga)
+                    }
+
+                    // update chapters
+                    guard let chapters = newManga.chapters, !chapters.isEmpty else { return nil }
+
+                    let newChapters = CoreDataManager.shared.setChapters(
+                        chapters,
+                        sourceId: manga.sourceId,
+                        mangaId: manga.id,
+                        context: context
+                    )
+                    var notifiableCount = 0
+                    if !newChapters.isEmpty {
+                        // add manga updates
+                        let scanlatorFilter = mangaObject.scanlatorFilter ?? []
+                        for chapter in newChapters
+                        where
+                            mangaObject.langFilter != nil ? chapter.lang == mangaObject.langFilter : true
+                            && !scanlatorFilter.isEmpty ? scanlatorFilter.contains(chapter.scanlator ?? "") : true
+                        {
+                            CoreDataManager.shared.createMangaUpdate(
+                                sourceId: manga.sourceId,
+                                mangaId: manga.id,
+                                chapterObject: chapter,
+                                context: context
+                            )
+                            notifiableCount += 1
+                        }
+                        libraryObject.lastChapter = chapters.compactMap { $0.dateUploaded }.max()
+                        libraryObject.lastUpdatedChapters = Date.now
+                    }
+
+                    if updateMetadata || !newChapters.isEmpty {
+                        libraryObject.lastUpdated = Date.now
+                    }
+
+                    if context.hasChanges {
+                        try? context.save()
+                    }
+
+                    guard notifiableCount > 0 else { return nil }
+                    let title = mangaObject.title.isEmpty ? (manga.title ?? "") : mangaObject.title
+                    return NotificationManager.NewChaptersSummary(
+                        mangaIdentifier: MangaIdentifier(sourceKey: manga.sourceId, mangaKey: manga.id),
+                        mangaTitle: title,
+                        chapterCount: notifiableCount
+                    )
+                }
+
+                if notificationsEnabled, let summary {
+                    pendingNotifications.append(summary)
+                }
+
+                completed += 1
+                progress.completedUnitCount = Int64(completed)
+                updateLibraryRefreshProgress(progress)
             }
 
             return results
