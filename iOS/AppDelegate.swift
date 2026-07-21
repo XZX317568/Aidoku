@@ -156,6 +156,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Reader.upscaleImages": false,
                 "Reader.upscaleMaxHeight": 2000,
                 "Reader.nativeEnhanceSharpen": 0.5,
+                "Reader.nativeEnhanceContrast": 0.15,
                 "Reader.nativeEnhanceDenoise": 0.0,
                 "Reader.cropBorders": false,
                 "Reader.disableQuickActions": false,

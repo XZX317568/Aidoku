@@ -277,8 +277,8 @@ struct HistoryView: View {
         for section in viewModel.filteredHistory.values.sorted(by: { $0.daysAgo < $1.daysAgo }) {
             for entry in section.entries {
                 guard !seen.contains(entry.mangaCacheKey) else { continue }
-                // Only show entries that are in-progress (have a current page > 0 and not completed)
-                if let currentPage = entry.currentPage, currentPage > 0 {
+                // Show entries that are in-progress: currentPage exists and is not -1 (completed)
+                if let currentPage = entry.currentPage, currentPage != -1 {
                     seen.insert(entry.mangaCacheKey)
                     result.append(entry)
                 }

@@ -49,20 +49,33 @@ class NativeEnhanceModel {
 
         guard var outputImage = lanczosFilter.outputImage else { return nil }
 
-        // Step 2: Sharpen luminance to restore edge crispness after upscaling
+        // Step 2: Boost contrast to make manga lines crisper (black blacker, white whiter)
+        let contrastAmount = UserDefaults.standard.double(forKey: "Reader.nativeEnhanceContrast")
+        if contrastAmount != 0 {
+            let contrastFilter = CIFilter.colorControls()
+            contrastFilter.inputImage = outputImage
+            contrastFilter.contrast = Float(1.0 + contrastAmount)
+            contrastFilter.brightness = 0
+            contrastFilter.saturation = 1
+            if let contrasted = contrastFilter.outputImage {
+                outputImage = contrasted
+            }
+        }
+
+        // Step 3: Sharpen luminance to restore edge crispness after upscaling
         let intensity = sharpenIntensity
             ?? CGFloat(UserDefaults.standard.double(forKey: "Reader.nativeEnhanceSharpen"))
         if intensity > 0 {
             let sharpenFilter = CIFilter.unsharpMask()
             sharpenFilter.inputImage = outputImage
-            sharpenFilter.radius = Float(1.5)
+            sharpenFilter.radius = Float(2.0)
             sharpenFilter.intensity = Float(intensity)
             if let sharpened = sharpenFilter.outputImage {
                 outputImage = sharpened
             }
         }
 
-        // Step 3: Optional noise reduction for cleaner flat areas
+        // Step 4: Optional noise reduction for cleaner flat areas
         let noiseReduction = UserDefaults.standard.double(forKey: "Reader.nativeEnhanceDenoise")
         if noiseReduction > 0 {
             let denoiseFilter = CIFilter.noiseReduction()
