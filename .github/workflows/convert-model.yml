@@ -1,0 +1,32 @@
+name: Convert Real-CUGAN to CoreML
+
+on:
+  workflow_dispatch:
+
+jobs:
+  convert:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install coremltools numpy
+
+      - name: Run conversion
+        run: |
+          python scripts/convert_realcugan.py
+
+      - name: Upload CoreML model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RealCUGAN_2x_anime.mlpackage
+          path: scripts/realcugan_work/RealCUGAN_2x_anime.mlpackage.zip
+          if-no-files-found: error
