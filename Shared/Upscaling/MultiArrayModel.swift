@@ -25,8 +25,20 @@ class MultiArrayModel: ImageProcessingModel {
 
     required init(model: MLModel, config: [String: Any]) {
         self.mlmodel = model
-        self.inputName = (config["inputName"] as? String) ?? "input"
-        self.outputName = (config["outputName"] as? String) ?? "output"
+        // Auto-detect the model's actual input/output feature names.
+        // Configured names are used only if they exist in the model; otherwise
+        // fall back to the model's real names (handles models converted without
+        // explicit output naming, e.g. Real-CUGAN).
+        let configuredInput = (config["inputName"] as? String) ?? "input"
+        let configuredOutput = (config["outputName"] as? String) ?? "output"
+        let modelInputs = model.modelDescription.inputDescriptionsByName.keys
+        let modelOutputs = model.modelDescription.outputDescriptionsByName.keys
+        self.inputName = modelInputs.contains(configuredInput)
+            ? configuredInput
+            : (modelInputs.first ?? configuredInput)
+        self.outputName = modelOutputs.contains(configuredOutput)
+            ? configuredOutput
+            : (modelOutputs.first ?? configuredOutput)
         self.blockSize = (config["blockSize"] as? Int) ?? 256
         self.shrinkSize = (config["shrinkSize"] as? Int) ?? 0
         self.scale = (config["scale"] as? Int) ?? 2
