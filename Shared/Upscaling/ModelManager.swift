@@ -25,7 +25,7 @@ struct ModelInfo: Codable {
 actor ModelManager {
     static let shared = ModelManager()
 
-    static private let modelListUrl = URL(string: "https://github.com/XZX317568/Aidoku/releases/download/models/models.json")!
+    static private let modelListUrl = URL(string: "https://raw.githubusercontent.com/XZX317568/Aidoku/main/scripts/models.json")!
     static private let supportedModelTypes: Set<String> = ["multiarray", "image"]
 
     private var imageModelCache: [String: ImageProcessingModel] = [:]
