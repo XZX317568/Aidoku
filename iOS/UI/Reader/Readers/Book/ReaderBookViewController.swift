@@ -23,6 +23,7 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     private var pageViewControllers: [ReaderPageViewController] = []
     private var currentPage = 1
     private var isTransitioning = false
+    private var lastDoublePageState: Bool?
 
     private lazy var pageViewController = makePageViewController()
 
@@ -46,7 +47,21 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
         pageViewController.delegate = self
         pageViewController.dataSource = self
         add(child: pageViewController)
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Update spine after view has a valid frame
         updateSpineLocation()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // Only re-evaluate when the double-page state actually changes
+        let current = isDoublePage
+        if current != lastDoublePageState {
+            updateSpineLocation()
+        }
     }
 
     override func observe() {
@@ -76,7 +91,9 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     }
 
     private func updateSpineLocation() {
-        pageViewController.isDoubleSided = isDoublePage
+        let doublePage = isDoublePage
+        lastDoublePageState = doublePage
+        pageViewController.isDoubleSided = doublePage
 
         // Set the current page(s) with the new spine location
         let currentVCs = currentViewControllers(for: currentPage)
