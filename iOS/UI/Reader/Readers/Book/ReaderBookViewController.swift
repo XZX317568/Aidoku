@@ -10,7 +10,7 @@
 import AidokuRunner
 import UIKit
 
-class ReaderBookViewController: BaseObservingViewController {
+class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegate {
 
     let viewModel: ReaderPagedViewModel
 
@@ -76,8 +76,7 @@ class ReaderBookViewController: BaseObservingViewController {
     }
 
     private func updateSpineLocation() {
-        let location: UIPageViewController.SpineLocation = isDoublePage ? .mid : .min
-        pageViewController.doubleSided = isDoublePage
+        pageViewController.isDoubleSided = isDoublePage
 
         // Set the current page(s) with the new spine location
         let currentVCs = currentViewControllers(for: currentPage)
@@ -86,19 +85,20 @@ class ReaderBookViewController: BaseObservingViewController {
             direction: .forward,
             animated: false
         )
+
+        // Use a concrete UIInterfaceOrientation value
+        let orientation: UIInterfaceOrientation = view.bounds.width > view.bounds.height ? .landscapeLeft : .portrait
         pageViewController.delegate?.pageViewController?(
             pageViewController,
-            spineLocationFor: traitCollection.verticalSizeClass == .regular ? .portrait : .landscape
+            spineLocationFor: orientation
         )
     }
 
     // MARK: - Page Management
 
     private func loadPageControllers() {
-        pageViewControllers = pages.enumerated().map { index, _ in
-            let vc = ReaderPageViewController(type: .page, delegate: delegate)
-            vc.pageIndex = index
-            return vc
+        pageViewControllers = pages.enumerated().map { _, _ in
+            ReaderPageViewController(type: .page, delegate: delegate)
         }
     }
 
@@ -123,8 +123,9 @@ class ReaderBookViewController: BaseObservingViewController {
     private func move(toPage page: Int, animated: Bool) {
         guard !pageViewControllers.isEmpty else { return }
         let clamped = max(1, min(page, pageViewControllers.count))
+        // compute direction based on currentPage before updating it
+        let direction: UIPageViewController.NavigationDirection = clamped >= currentPage ? .forward : .reverse
         currentPage = clamped
-        let direction: UIPageViewController.NavigationDirection = page >= currentPage ? .forward : .reverse
         let vcs = currentViewControllers(for: clamped)
         pageViewController.setViewControllers(vcs, direction: direction, animated: animated)
         loadPagesAround(clamped)
@@ -280,7 +281,7 @@ extension ReaderBookViewController: UIPageViewControllerDelegate {
         spineLocationFor orientation: UIInterfaceOrientation
     ) -> UIPageViewController.SpineLocation {
         let isLandscape = orientation.isLandscape && traitCollection.horizontalSizeClass == .regular
-        pageViewController.doubleSided = isLandscape
+        pageViewController.isDoubleSided = isLandscape
         return isLandscape ? .mid : .min
     }
 
