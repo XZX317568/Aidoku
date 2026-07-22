@@ -95,8 +95,12 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
         lastDoublePageState = doublePage
         pageViewController.isDoubleSided = doublePage
 
+        // Guard: don't set view controllers if pages haven't loaded yet
+        guard !pageViewControllers.isEmpty else { return }
+
         // Set the current page(s) with the new spine location
         let currentVCs = currentViewControllers(for: currentPage)
+        guard !currentVCs.isEmpty else { return }
         pageViewController.setViewControllers(
             currentVCs,
             direction: .forward,
@@ -120,6 +124,7 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     }
 
     private func currentViewControllers(for page: Int) -> [UIViewController] {
+        guard !pageViewControllers.isEmpty else { return [] }
         let idx = max(0, min(page - 1, pageViewControllers.count - 1))
         if isDoublePage {
             // Provide a pair for double-page spread
@@ -150,6 +155,7 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     }
 
     private func loadPagesAround(_ page: Int) {
+        guard !pageViewControllers.isEmpty, !pages.isEmpty else { return }
         let preloadRange = 2
         let start = max(0, page - 1 - preloadRange)
         let end = min(pageViewControllers.count - 1, page - 1 + preloadRange)
