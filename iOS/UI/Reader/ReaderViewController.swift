@@ -15,6 +15,7 @@ class ReaderViewController: BaseObservingViewController {
         case paged
         case scroll
         case text
+        case book
     }
 
     let source: AidokuRunner.Source?
@@ -576,6 +577,7 @@ extension ReaderViewController {
             case "vertical": readingMode = .vertical
             case "scroll", "webtoon": readingMode = .webtoon
             case "continuous": readingMode = .continuous
+            case "book": readingMode = .book
             case "default":
                 let defaultMode = UserDefaults.standard.string(forKey: "Reader.readingMode")
                 if defaultMode == "default" {
@@ -614,6 +616,8 @@ extension ReaderViewController {
                     setReader(.paged)
                 case .webtoon, .continuous:
                     setReader(.scroll)
+                case .book:
+                    setReader(.book)
             }
         }
     }
@@ -659,6 +663,13 @@ extension ReaderViewController {
                     } else {
                         pageController = nil
                     }
+                }
+            case .book:
+                toolbarView.sliderView.direction = .forward
+                if !(reader is ReaderBookViewController) {
+                    pageController = ReaderBookViewController(source: source, manga: manga)
+                } else {
+                    pageController = nil
                 }
         }
         if let pageController {
@@ -907,6 +918,8 @@ extension ReaderViewController: ReaderHoldingDelegate {
                         setReader(.paged)
                     case .webtoon, .continuous:
                         setReader(.scroll)
+                    case .book:
+                        setReader(.book)
                 }
                 setChapter(chapter)
                 loadCurrentChapter()

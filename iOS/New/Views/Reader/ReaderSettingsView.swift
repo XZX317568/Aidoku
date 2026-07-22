@@ -58,7 +58,8 @@ struct ReaderSettingsView: View {
                                     "ltr",
                                     "vertical",
                                     "webtoon",
-                                    "continuous"
+                                    "continuous",
+                                    "book"
                                 ],
                                 titles: [
                                     NSLocalizedString("DEFAULT"),
@@ -67,7 +68,8 @@ struct ReaderSettingsView: View {
                                     NSLocalizedString("LTR"),
                                     NSLocalizedString("VERTICAL"),
                                     NSLocalizedString("WEBTOON"),
-                                    NSLocalizedString("CONTINUOUS_WITH_GAPS")
+                                    NSLocalizedString("CONTINUOUS_WITH_GAPS"),
+                                    NSLocalizedString("BOOK_MODE")
                                 ]
                             ))
                         )
@@ -308,7 +310,7 @@ struct ReaderSettingsView: View {
                         }
                     }
 
-                    if readingMode == .rtl || readingMode == .ltr || readingMode == .vertical || readingMode == nil {
+                    if readingMode == .rtl || readingMode == .ltr || readingMode == .vertical || readingMode == .book || readingMode == nil {
                         Section(NSLocalizedString("PAGED")) {
                             SettingView(
                                 setting: .init(

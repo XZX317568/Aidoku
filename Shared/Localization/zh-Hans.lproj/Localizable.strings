@@ -499,6 +499,7 @@
 "UPSCALING_MODELS" = "超分辨率模型";
 "ORIGINAL" = "原图";
 "LONG_PRESS_COMPARE" = "双指长按对比原图";
+"BOOK_MODE" = "书籍模式（翻页动画）";
 "UPSCALE_MAX_IMAGE_HEIGHT" = "最大图片高度";
 "UPSCALE_MAX_IMAGE_HEIGHT_TEXT" = "大于最大图片高度的图片将不会进行放大处理。";
 "ENABLED_MODEL" = "已启用模型";

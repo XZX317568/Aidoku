@@ -273,6 +273,7 @@
 		FB55AF9E28AAA4E50083EFC4 /* ReaderBrightnessControlView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55AF9D28AAA4E50083EFC4 /* ReaderBrightnessControlView.swift */; };
 		FB55AFA028AAAD9E0083EFC3 /* UIToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55AF9F28AAAD9E0083EFC3 /* UIToolbar.swift */; };
 		FB55AFA328AAAEDF0083EFC3 /* ReaderPagedViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55AFA228AAAEDF0083EFC3 /* ReaderPagedViewController.swift */; };
+		FB7984A12E0C6640000761A9 /* ReaderBookViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB7984A22E0C6640000761A9 /* ReaderBookViewController.swift */; };
 		FB55AFA528AAAEF70083EFC3 /* BaseViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55AFA428AAAEF70083EFC3 /* BaseViewController.swift */; };
 		FB55AFA728AAAFE10083EFC3 /* UINavigationItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55AFA628AAAFE10083EFC3 /* UINavigationItem.swift */; };
 		FB55AFA928AAB1440083EFC3 /* UIViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55AFA828AAB1440083EFC3 /* UIViewController.swift */; };
@@ -833,6 +834,7 @@
 		FB55AF9D28AAA4E50083EFC4 /* ReaderBrightnessControlView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderBrightnessControlView.swift; sourceTree = "<group>"; };
 		FB55AF9F28AAAD9E0083EFC3 /* UIToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIToolbar.swift; sourceTree = "<group>"; };
 		FB55AFA228AAAEDF0083EFC3 /* ReaderPagedViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderPagedViewController.swift; sourceTree = "<group>"; };
+		FB7984A22E0C6640000761A9 /* ReaderBookViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderBookViewController.swift; sourceTree = "<group>"; };
 		FB55AFA428AAAEF70083EFC3 /* BaseViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BaseViewController.swift; sourceTree = "<group>"; };
 		FB55AFA628AAAFE10083EFC3 /* UINavigationItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UINavigationItem.swift; sourceTree = "<group>"; };
 		FB55AFA828AAB1440083EFC3 /* UIViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIViewController.swift; sourceTree = "<group>"; };
@@ -1685,6 +1687,7 @@
 			isa = PBXGroup;
 			children = (
 				FB55AFAD28AAD3F50083EFC3 /* Paged */,
+				FB7984A32E0C6640000761A9 /* Book */,
 				FB1B51AF28E35B1100D3CE0E /* Webtoon */,
 				FBE3E4952DD401A800EF8145 /* Text */,
 				FBC1271E28ABE05800B68FFC /* ReaderReaderDelegate.swift */,
@@ -1713,6 +1716,14 @@
 				FB1F553328AFE78600CFE182 /* ReaderDoublePageViewController.swift */,
 			);
 			path = Paged;
+			sourceTree = "<group>";
+		};
+		FB7984A32E0C6640000761A9 /* Book */ = {
+			isa = PBXGroup;
+			children = (
+				FB7984A22E0C6640000761A9 /* ReaderBookViewController.swift */,
+			);
+			path = Book;
 			sourceTree = "<group>";
 		};
 		FB55C0B02DF2444F0019A551 /* Local */ = {
@@ -2634,6 +2645,7 @@
 				FB8E48D52DBFCEFB002A3621 /* SourceHomeContentView.swift in Sources */,
 				FBF9259D2F4DFB810049CB43 /* MangaBakaModels.swift in Sources */,
 				FB55AFA328AAAEDF0083EFC3 /* ReaderPagedViewController.swift in Sources */,
+				FB7984A12E0C6640000761A9 /* ReaderBookViewController.swift in Sources */,
 				FB14B1242DF4CF2B0067E4D4 /* ImagePicker.swift in Sources */,
 				FB42751B29612A3000131377 /* SourceSectionHeaderView.swift in Sources */,
 				FB1F553228AFC9FD00CFE182 /* ReadingMode.swift in Sources */,
