@@ -667,7 +667,13 @@ extension ReaderViewController {
                     }
                 }
             case .book:
-                toolbarView.sliderView.direction = .forward
+                // Match manga direction: RTL books progress right-to-left like paged RTL.
+                switch manga.viewer {
+                    case .leftToRight:
+                        toolbarView.sliderView.direction = .forward
+                    default:
+                        toolbarView.sliderView.direction = .backward
+                }
                 if !(reader is ReaderBookViewController) {
                     pageController = ReaderBookViewController(source: source, manga: manga)
                 } else {
@@ -971,6 +977,7 @@ extension ReaderViewController {
         let tapZone: TapZone? = switch enabledTapZone {
             case "auto": switch reader {
                 case is ReaderPagedViewController: .leftRight
+                case is ReaderBookViewController: .leftRight
                 case is ReaderWebtoonViewController: .lShaped
                 case is ReaderTextViewController: .lShaped
                 case is ReaderPagedTextViewController: .leftRight  // Kindle-style tap zones
@@ -1080,17 +1087,35 @@ extension ReaderViewController: UIPencilInteractionDelegate {
 
     }
 
+
     private func nextPage() {
         switch readingMode {
-            case .rtl: reader?.moveLeft()
-            default: reader?.moveRight()
+            case .rtl:
+                reader?.moveLeft()
+            case .book:
+                // Book uses screen-edge semantics; advance is left for RTL manga.
+                if manga.viewer == .leftToRight {
+                    reader?.moveRight()
+                } else {
+                    reader?.moveLeft()
+                }
+            default:
+                reader?.moveRight()
         }
     }
 
     private func previousPage() {
         switch readingMode {
-            case .rtl: reader?.moveRight()
-            default: reader?.moveLeft()
+            case .rtl:
+                reader?.moveRight()
+            case .book:
+                if manga.viewer == .leftToRight {
+                    reader?.moveLeft()
+                } else {
+                    reader?.moveRight()
+                }
+            default:
+                reader?.moveLeft()
         }
     }
 }

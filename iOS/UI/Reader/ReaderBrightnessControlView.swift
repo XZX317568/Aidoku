@@ -14,9 +14,9 @@ class ReaderBrightnessControlView: UIView {
     private let brightnessBar = UIView()
     private let brightnessFill = UIView()
 
-    private var initialBrightness: CGFloat = 0
     private var isAdjusting = false
     private var hideTimer: Timer?
+    private var brightnessFillHeightConstraint: NSLayoutConstraint?
 
     private let barHeight: CGFloat = 120
     private let barWidth: CGFloat = 4
@@ -33,6 +33,7 @@ class ReaderBrightnessControlView: UIView {
     private func configure() {
         backgroundColor = .clear
         isUserInteractionEnabled = true
+        isMultipleTouchEnabled = false
 
         // Indicator container
         brightnessIndicator.backgroundColor = UIColor.black.withAlphaComponent(0.7)
@@ -42,7 +43,7 @@ class ReaderBrightnessControlView: UIView {
         brightnessIndicator.translatesAutoresizingMaskIntoConstraints = false
         addSubview(brightnessIndicator)
 
-        // Sun icon
+        // Icon
         brightnessIcon.image = UIImage(systemName: "sun.max.fill")
         brightnessIcon.tintColor = .white
         brightnessIcon.contentMode = .scaleAspectFit
@@ -86,53 +87,54 @@ class ReaderBrightnessControlView: UIView {
             equalToConstant: barHeight * CGFloat(UIScreen.main.brightness)
         )
         brightnessFillHeightConstraint?.isActive = true
+
+        // This view is already constrained to the left edge of the reader.
+        // Use a vertical pan so horizontal page-turn gestures can still compete.
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        pan.maximumNumberOfTouches = 1
+        pan.cancelsTouchesInView = false
+        pan.delegate = self
+        addGestureRecognizer(pan)
     }
 
-    private var brightnessFillHeightConstraint: NSLayoutConstraint?
+    // MARK: - Gesture Handling
 
-    // MARK: - Touch Handling
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
-        // Only activate on left 25% of screen
-        if location.x < bounds.width * 0.25 {
+    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+        switch gesture.state {
+        case .began:
             isAdjusting = true
-            initialBrightness = UIScreen.main.brightness
             showIndicator()
-        } else {
-            super.touchesBegan(touches, with: event)
+        case .changed:
+            guard isAdjusting else { return }
+            let translation = gesture.translation(in: self)
+            gesture.setTranslation(.zero, in: self)
+            let sensitivity: CGFloat = 0.005
+            let newBrightness = max(0.01, min(1.0, UIScreen.main.brightness - translation.y * sensitivity))
+            UIScreen.main.brightness = newBrightness
+            updateFill()
+        case .ended, .cancelled, .failed:
+            if isAdjusting {
+                isAdjusting = false
+                scheduleHide()
+            }
+        default:
+            break
         }
     }
 
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard isAdjusting, let touch = touches.first else {
-            super.touchesMoved(touches, with: event)
-            return
+    // Prefer vertical movement so page-turn / tap zones remain usable.
+    // Must live in the class body (Swift disallows overrides in extensions).
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let pan = gestureRecognizer as? UIPanGestureRecognizer else {
+            return super.gestureRecognizerShouldBegin(gestureRecognizer)
         }
-        let translation = touch.location(in: self).y - touch.previousLocation(in: self).y
-        let sensitivity: CGFloat = 0.005
-        let newBrightness = max(0.01, min(1.0, UIScreen.main.brightness - translation * sensitivity))
-        UIScreen.main.brightness = newBrightness
-        updateFill()
-    }
-
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if isAdjusting {
-            isAdjusting = false
-            scheduleHide()
-        } else {
-            super.touchesEnded(touches, with: event)
+        let velocity = pan.velocity(in: self)
+        if abs(velocity.x) > 0 || abs(velocity.y) > 0 {
+            return abs(velocity.y) > abs(velocity.x)
         }
-    }
-
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if isAdjusting {
-            isAdjusting = false
-            scheduleHide()
-        } else {
-            super.touchesCancelled(touches, with: event)
-        }
+        // Slow presses may report zero velocity; fall back to translation.
+        let translation = pan.translation(in: self)
+        return abs(translation.y) >= abs(translation.x)
     }
 
     // MARK: - UI Updates
@@ -159,5 +161,14 @@ class ReaderBrightnessControlView: UIView {
         let fillHeight = barHeight * CGFloat(UIScreen.main.brightness)
         brightnessFillHeightConstraint?.constant = fillHeight
         layoutIfNeeded()
+    }
+}
+
+extension ReaderBrightnessControlView: UIGestureRecognizerDelegate {
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        false
     }
 }

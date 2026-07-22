@@ -394,6 +394,11 @@ extension Settings {
                 value: .toggle(.init())
             ),
             .init(
+                key: "Reader.brightnessGesture",
+                title: NSLocalizedString("BRIGHTNESS_GESTURE"),
+                value: .toggle(.init())
+            ),
+            .init(
                 key: "Reader.backgroundColor",
                 title: NSLocalizedString("READER_BG_COLOR"),
                 value: .select(.init(

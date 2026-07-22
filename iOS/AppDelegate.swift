@@ -167,6 +167,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Reader.tapZones": "disabled",
                 "Reader.invertTapZones": false,
                 "Reader.animatePageTransitions": true,
+                "Reader.brightnessGesture": true,
                 "Reader.backgroundColor": "black",
                 "Reader.pagesToPreload": 2,
                 "Reader.pagedPageLayout": "auto",

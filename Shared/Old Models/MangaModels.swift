@@ -67,7 +67,7 @@ enum MediaType: Int, Codable {
             case .oneShot: return NSLocalizedString("ONESHOT", comment: "")
             case .oel: return NSLocalizedString("OEL", comment: "")
             case .comic: return NSLocalizedString("COMIC", comment: "")
-            case .book: return NSLocalizedString("BOOK", comment: "") // not really handled yet
+            case .book: return NSLocalizedString("BOOK_MODE", comment: "")
         }
     }
 }
