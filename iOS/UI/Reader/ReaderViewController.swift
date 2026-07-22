@@ -526,6 +526,8 @@ class ReaderViewController: BaseObservingViewController {
                 currentReader = .paged
             case is ReaderWebtoonViewController:
                 currentReader = .scroll
+            case is ReaderBookViewController:
+                currentReader = .book
             default:
                 currentReader = .paged
         }

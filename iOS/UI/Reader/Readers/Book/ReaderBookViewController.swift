@@ -22,14 +22,30 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     private var pages: [Page] = []
     private var pageViewControllers: [ReaderPageViewController] = []
     private var currentPage = 1
+    private var isLoadingChapter = false
     private var isTransitioning = false
     private var lastDoublePageState: Bool?
+    private var loadChapterTask: Task<Void, Never>?
 
     private lazy var pageViewController = makePageViewController()
+    private lazy var emptyPageViewController = {
+        let viewController = UIViewController()
+        viewController.view.backgroundColor = .systemBackground
+        return viewController
+    }()
+    private lazy var trailingBlankPageViewController = {
+        let viewController = UIViewController()
+        viewController.view.backgroundColor = .systemBackground
+        return viewController
+    }()
 
     /// Whether we're currently showing a double-page spread (iPad landscape)
     private var isDoublePage: Bool {
         view.bounds.width > view.bounds.height && traitCollection.horizontalSizeClass == .regular
+    }
+
+    private var isShowingDoublePage: Bool {
+        lastDoublePageState == true
     }
 
     init(source: AidokuRunner.Source?, manga: AidokuRunner.Manga) {
@@ -46,6 +62,7 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     override func configure() {
         pageViewController.delegate = self
         pageViewController.dataSource = self
+        showEmptyPage()
         add(child: pageViewController)
     }
 
@@ -58,7 +75,7 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         // Only re-evaluate when the double-page state actually changes
-        let current = isDoublePage
+        let current = isDoublePage && !pageViewControllers.isEmpty
         if current != lastDoublePageState {
             updateSpineLocation()
         }
@@ -91,51 +108,46 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     }
 
     private func updateSpineLocation() {
-        let doublePage = isDoublePage
-        lastDoublePageState = doublePage
-        pageViewController.isDoubleSided = doublePage
-
-        // Guard: don't set view controllers if pages haven't loaded yet
-        guard !pageViewControllers.isEmpty else { return }
-
-        // Set the current page(s) with the new spine location
-        let currentVCs = currentViewControllers(for: currentPage)
-        guard !currentVCs.isEmpty else { return }
-        pageViewController.setViewControllers(
-            currentVCs,
-            direction: .forward,
-            animated: false
-        )
-
-        // Use a concrete UIInterfaceOrientation value
         let orientation: UIInterfaceOrientation = view.bounds.width > view.bounds.height ? .landscapeLeft : .portrait
-        pageViewController.delegate?.pageViewController?(
+        _ = self.pageViewController(
             pageViewController,
             spineLocationFor: orientation
         )
     }
 
+    private func showEmptyPage() {
+        isTransitioning = false
+        lastDoublePageState = false
+        pageViewController.setViewControllers(
+            [emptyPageViewController],
+            direction: .forward,
+            animated: false
+        )
+        pageViewController.isDoubleSided = false
+    }
+
     // MARK: - Page Management
 
     private func loadPageControllers() {
-        pageViewControllers = pages.enumerated().map { _, _ in
-            ReaderPageViewController(type: .page, delegate: delegate)
+        let liveTextHidden = delegate?.barsHidden ?? false
+        pageViewControllers = pages.map { _ in
+            let viewController = ReaderPageViewController(type: .page, delegate: delegate)
+            viewController.pageView?.setLiveTextHidden(liveTextHidden)
+            return viewController
         }
     }
 
-    private func currentViewControllers(for page: Int) -> [UIViewController] {
+    private func currentViewControllers(for page: Int, doublePage: Bool) -> [UIViewController] {
         guard !pageViewControllers.isEmpty else { return [] }
         let idx = max(0, min(page - 1, pageViewControllers.count - 1))
-        if isDoublePage {
+        if doublePage {
             // Provide a pair for double-page spread
             let left = pageViewControllers[idx]
             if idx + 1 < pageViewControllers.count {
                 return [left, pageViewControllers[idx + 1]]
             } else {
                 // Last odd page: show with empty back
-                let empty = UIViewController()
-                empty.view.backgroundColor = .systemBackground
-                return [left, empty]
+                return [left, trailingBlankPageViewController]
             }
         } else {
             return [pageViewControllers[idx]]
@@ -143,15 +155,28 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     }
 
     private func move(toPage page: Int, animated: Bool) {
-        guard !pageViewControllers.isEmpty else { return }
+        guard !isLoadingChapter, !isTransitioning, !pageViewControllers.isEmpty else { return }
         let clamped = max(1, min(page, pageViewControllers.count))
-        // compute direction based on currentPage before updating it
-        let direction: UIPageViewController.NavigationDirection = clamped >= currentPage ? .forward : .reverse
+        let previousPage = currentPage
+        let direction: UIPageViewController.NavigationDirection = clamped >= previousPage ? .forward : .reverse
         currentPage = clamped
-        let vcs = currentViewControllers(for: clamped)
-        pageViewController.setViewControllers(vcs, direction: direction, animated: animated)
-        loadPagesAround(clamped)
-        reportCurrentPage()
+        let vcs = currentViewControllers(for: clamped, doublePage: isShowingDoublePage)
+        guard !vcs.isEmpty else { return }
+        isTransitioning = animated
+        pageViewController.setViewControllers(vcs, direction: direction, animated: animated) { [weak self] completed in
+            guard let self, animated else { return }
+            self.isTransitioning = false
+            if completed {
+                self.loadPagesAround(clamped)
+                self.reportCurrentPage()
+            } else {
+                self.currentPage = previousPage
+            }
+        }
+        if !animated {
+            loadPagesAround(clamped)
+            reportCurrentPage()
+        }
     }
 
     private func loadPagesAround(_ page: Int) {
@@ -162,16 +187,12 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
         for i in start...end {
             guard i < pages.count else { continue }
             let vc = pageViewControllers[i]
-            if vc.pageView?.imageView.image == nil {
-                Task {
-                    _ = await vc.pageView?.setPage(pages[i], sourceId: viewModel.source?.key)
-                }
-            }
+            vc.setPage(pages[i], sourceId: viewModel.source?.key ?? viewModel.manga.sourceKey)
         }
     }
 
     private func reportCurrentPage() {
-        if isDoublePage {
+        if isShowingDoublePage {
             let left = currentPage
             let right = min(currentPage + 1, pages.count)
             delegate?.setCurrentPages(left...right)
@@ -189,56 +210,83 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     // MARK: - ReaderReaderDelegate
 
     func moveLeft() {
-        guard !isTransitioning else { return }
-        let step = isDoublePage ? 2 : 1
-        let target = currentPage - step
-        if target >= 1 {
+        guard !isLoadingChapter, !isTransitioning else { return }
+        let step = isShowingDoublePage ? 2 : 1
+        if currentPage > 1 {
+            let target = max(1, currentPage - step)
             move(toPage: target, animated: true)
         } else if let prev = delegate?.getPreviousChapter() {
+            delegate?.setChapter(prev)
             setChapter(prev, startPage: Int.max)
         }
     }
 
     func moveRight() {
-        guard !isTransitioning else { return }
-        let step = isDoublePage ? 2 : 1
+        guard !isLoadingChapter, !isTransitioning else { return }
+        let step = isShowingDoublePage ? 2 : 1
         let target = currentPage + step
         if target <= pageViewControllers.count {
             move(toPage: target, animated: true)
         } else if let next = delegate?.getNextChapter() {
+            delegate?.setChapter(next)
             setChapter(next, startPage: 1)
         }
     }
 
     func sliderMoved(value: CGFloat) {
-        let page = max(1, min(Int(value * CGFloat(pageViewControllers.count)) + 1, pageViewControllers.count))
-        move(toPage: page, animated: false)
+        guard !isLoadingChapter, !pageViewControllers.isEmpty else { return }
+        let page = Int(round(value * CGFloat(pageViewControllers.count - 1))) + 1
+        delegate?.displayPage(page)
     }
 
     func sliderStopped(value: CGFloat) {
-        sliderMoved(value: value)
+        guard !isLoadingChapter, !pageViewControllers.isEmpty else { return }
+        let page = Int(round(value * CGFloat(pageViewControllers.count - 1))) + 1
+        move(toPage: page, animated: false)
     }
 
     func setChapter(_ chapter: AidokuRunner.Chapter, startPage: Int) {
+        loadChapterTask?.cancel()
         self.chapter = chapter
-        Task {
-            await loadChapter(startPage: startPage)
+        isLoadingChapter = true
+        pageViewController.view.isUserInteractionEnabled = false
+        loadChapterTask = Task { [weak self] in
+            await self?.loadChapter(chapter: chapter, startPage: startPage)
         }
     }
 }
 
 // MARK: - Chapter Loading
 extension ReaderBookViewController {
-    func loadChapter(startPage: Int) async {
-        guard let chapter else { return }
+    private func loadChapter(chapter: AidokuRunner.Chapter, startPage: Int) async {
         await viewModel.loadPages(chapter: chapter)
+        guard !Task.isCancelled, self.chapter == chapter else { return }
         pages = viewModel.pages
         delegate?.setPages(pages)
+        guard parent != nil else { return }
 
         await MainActor.run {
+            defer {
+                isLoadingChapter = false
+                pageViewController.view.isUserInteractionEnabled = true
+                loadChapterTask = nil
+            }
             loadPageControllers()
-            let target = startPage == Int.max ? pages.count : max(1, min(startPage, pages.count))
-            move(toPage: target, animated: false)
+            guard !pageViewControllers.isEmpty else {
+                currentPage = 1
+                showEmptyPage()
+                return
+            }
+            let target: Int
+            if startPage == Int.max {
+                target = isDoublePage && pages.count.isMultiple(of: 2) ? max(1, pages.count - 1) : pages.count
+            } else {
+                target = max(1, min(startPage, pages.count))
+            }
+            currentPage = target
+            updateSpineLocation()
+            loadPagesAround(target)
+            reportCurrentPage()
         }
     }
 }
@@ -250,24 +298,13 @@ extension ReaderBookViewController: UIPageViewControllerDataSource {
         viewControllerBefore viewController: UIViewController
     ) -> UIViewController? {
         guard !pageViewControllers.isEmpty else { return nil }
-        let idx = pageViewControllers.firstIndex(where: { $0 === viewController })
-            ?? pageViewControllers.firstIndex(where: { $0 === (viewController as? ReaderDoublePageViewController)?.firstPageController })
-
-        if isDoublePage {
-            // In double-page mode, go back by 2
-            guard let currentIdx = idx ?? currentIndexFromViewControllers(pageViewController.viewControllers) else { return nil }
-            let prevIdx = currentIdx - 2
-            guard prevIdx >= 0 else { return nil }
-            let left = pageViewControllers[prevIdx]
-            let right = pageViewControllers[prevIdx + 1]
-            // Return the left page; the delegate will provide the pair
-            return left
-        } else {
-            guard let currentIdx = idx else { return nil }
-            let prevIdx = currentIdx - 1
-            guard prevIdx >= 0 else { return nil }
-            return pageViewControllers[prevIdx]
+        if viewController === trailingBlankPageViewController {
+            return pageViewControllers.last
         }
+        guard let currentIdx = pageViewControllers.firstIndex(where: { $0 === viewController }) else { return nil }
+        let previousIndex = currentIdx - 1
+        guard previousIndex >= 0 else { return nil }
+        return pageViewControllers[previousIndex]
     }
 
     func pageViewController(
@@ -275,25 +312,15 @@ extension ReaderBookViewController: UIPageViewControllerDataSource {
         viewControllerAfter viewController: UIViewController
     ) -> UIViewController? {
         guard !pageViewControllers.isEmpty else { return nil }
-        let idx = pageViewControllers.firstIndex(where: { $0 === viewController })
-            ?? pageViewControllers.firstIndex(where: { $0 === (viewController as? ReaderDoublePageViewController)?.firstPageController })
-
-        if isDoublePage {
-            guard let currentIdx = idx ?? currentIndexFromViewControllers(pageViewController.viewControllers) else { return nil }
-            let nextIdx = currentIdx + 2
-            guard nextIdx < pageViewControllers.count else { return nil }
-            return pageViewControllers[nextIdx]
-        } else {
-            guard let currentIdx = idx else { return nil }
-            let nextIdx = currentIdx + 1
-            guard nextIdx < pageViewControllers.count else { return nil }
-            return pageViewControllers[nextIdx]
+        guard let currentIdx = pageViewControllers.firstIndex(where: { $0 === viewController }) else { return nil }
+        let nextIndex = currentIdx + 1
+        if nextIndex < pageViewControllers.count {
+            return pageViewControllers[nextIndex]
         }
-    }
-
-    private func currentIndexFromViewControllers(_ vcs: [UIViewController]?) -> Int? {
-        guard let first = vcs?.first else { return nil }
-        return pageViewControllers.firstIndex(where: { $0 === first })
+        if isShowingDoublePage && pageViewControllers.count.isMultiple(of: 2) == false {
+            return trailingBlankPageViewController
+        }
+        return nil
     }
 }
 
@@ -303,9 +330,27 @@ extension ReaderBookViewController: UIPageViewControllerDelegate {
         _ pageViewController: UIPageViewController,
         spineLocationFor orientation: UIInterfaceOrientation
     ) -> UIPageViewController.SpineLocation {
-        let isLandscape = orientation.isLandscape && traitCollection.horizontalSizeClass == .regular
-        pageViewController.isDoubleSided = isLandscape
-        return isLandscape ? .mid : .min
+        let doublePage = orientation.isLandscape
+            && traitCollection.horizontalSizeClass == .regular
+            && !pageViewControllers.isEmpty
+        let viewControllers = currentViewControllers(for: currentPage, doublePage: doublePage)
+        let requiredCount = doublePage ? 2 : 1
+
+        guard viewControllers.count == requiredCount else {
+            showEmptyPage()
+            return .min
+        }
+
+        isTransitioning = false
+        setLiveTextButtonHidden(delegate?.barsHidden ?? false)
+        pageViewController.setViewControllers(
+            viewControllers,
+            direction: .forward,
+            animated: false
+        )
+        pageViewController.isDoubleSided = doublePage
+        lastDoublePageState = doublePage
+        return doublePage ? .mid : .min
     }
 
     func pageViewController(
@@ -313,6 +358,10 @@ extension ReaderBookViewController: UIPageViewControllerDelegate {
         willTransitionTo pendingViewControllers: [UIViewController]
     ) {
         isTransitioning = true
+        setLiveTextButtonHidden(true)
+        if UserDefaults.standard.bool(forKey: "Reader.hideBarsOnSwipe") {
+            delegate?.hideBars()
+        }
     }
 
     func pageViewController(
@@ -322,6 +371,12 @@ extension ReaderBookViewController: UIPageViewControllerDelegate {
         transitionCompleted completed: Bool
     ) {
         isTransitioning = false
+        setLiveTextButtonHidden(delegate?.barsHidden ?? false)
+        if completed {
+            for viewController in previousViewControllers {
+                (viewController as? ReaderPageViewController)?.pageView?.clearLiveTextSelection()
+            }
+        }
         guard completed, let vcs = pageViewController.viewControllers, let first = vcs.first else { return }
         if let idx = pageViewControllers.firstIndex(where: { $0 === first }) {
             currentPage = idx + 1
