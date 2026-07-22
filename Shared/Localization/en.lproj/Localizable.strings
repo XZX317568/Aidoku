@@ -538,7 +538,7 @@
 "UPSCALE_IMAGES" = "Upscale Images";
 "UPSCALING_MODELS" = "Upscaling Models";
 "ORIGINAL" = "Original";
-"LONG_PRESS_COMPARE" = "Long-Press to Compare Original";
+"LONG_PRESS_COMPARE" = "Two-Finger Long-Press to Compare Original";
 "UPSCALE_MAX_IMAGE_HEIGHT" = "Maximum Image Height";
 "UPSCALE_MAX_IMAGE_HEIGHT_TEXT" = "Images larger than the maxmimum image height won't be upscaled.";
 "ENABLED_MODEL" = "Enabled Model";

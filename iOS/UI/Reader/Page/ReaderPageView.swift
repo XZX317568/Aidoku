@@ -94,9 +94,12 @@ class ReaderPageView: UIView {
         imageWidthConstraint = imageView.widthAnchor.constraint(equalTo: widthAnchor)
         imageWidthConstraint?.isActive = true
 
-        // comparison: long-press to temporarily view the original (non-upscaled) image
+        // comparison: two-finger long-press to temporarily view the original (non-upscaled) image.
+        // Two fingers are required so it doesn't conflict with the single-finger
+        // long-press context menu (share / save to photos / reload) on the image view.
         let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleComparisonPress(_:)))
         longPress.minimumPressDuration = 0.35
+        longPress.numberOfTouchesRequired = 2
         longPress.delegate = self
         addGestureRecognizer(longPress)
         comparisonGesture = longPress
