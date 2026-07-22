@@ -27,7 +27,7 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     private var lastDoublePageState: Bool?
     private var loadChapterTask: Task<Void, Never>?
 
-    private lazy var pageViewController = makePageViewController()
+    private lazy var pageViewController = makePageViewController(doublePage: false)
     private lazy var emptyPageViewController = {
         let viewController = UIViewController()
         viewController.view.backgroundColor = .systemBackground
@@ -60,25 +60,13 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
     // MARK: - Lifecycle
 
     override func configure() {
-        pageViewController.delegate = self
-        pageViewController.dataSource = self
-        showEmptyPage()
+        rebuildPageViewController(doublePage: false)
         add(child: pageViewController)
-    }
-
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        // Update spine after view has a valid frame
-        updateSpineLocation()
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        // Only re-evaluate when the double-page state actually changes
-        let current = isDoublePage && !pageViewControllers.isEmpty
-        if current != lastDoublePageState {
-            updateSpineLocation()
-        }
+        updatePageLayoutIfNeeded()
     }
 
     override func observe() {
@@ -92,38 +80,64 @@ class ReaderBookViewController: BaseObservingViewController, ReaderReaderDelegat
 
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
-        coordinator.animate(alongsideTransition: { [weak self] _ in
-            self?.updateSpineLocation()
-        })
+        coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+            self?.updatePageLayoutIfNeeded()
+        }
     }
 
     // MARK: - Page Curl Setup
 
-    private func makePageViewController() -> UIPageViewController {
-        UIPageViewController(
+    private func makePageViewController(doublePage: Bool) -> UIPageViewController {
+        let spineLocation: UIPageViewController.SpineLocation = doublePage ? .mid : .min
+        return UIPageViewController(
             transitionStyle: .pageCurl,
             navigationOrientation: .horizontal,
-            options: nil
+            options: [
+                .spineLocation: NSNumber(value: spineLocation.rawValue)
+            ]
         )
     }
 
-    private func updateSpineLocation() {
-        let orientation: UIInterfaceOrientation = view.bounds.width > view.bounds.height ? .landscapeLeft : .portrait
-        _ = self.pageViewController(
-            pageViewController,
-            spineLocationFor: orientation
-        )
+    private func updatePageLayoutIfNeeded() {
+        guard !isLoadingChapter else { return }
+        let doublePage = isDoublePage && !pageViewControllers.isEmpty
+        guard doublePage != lastDoublePageState else { return }
+        rebuildPageViewController(doublePage: doublePage)
+        loadPagesAround(currentPage)
+        reportCurrentPage()
     }
 
-    private func showEmptyPage() {
-        isTransitioning = false
-        lastDoublePageState = false
-        pageViewController.setViewControllers(
-            [emptyPageViewController],
+    private func rebuildPageViewController(doublePage: Bool) {
+        let doublePage = doublePage && !pageViewControllers.isEmpty
+        let viewControllers = pageViewControllers.isEmpty
+            ? [emptyPageViewController]
+            : currentViewControllers(for: currentPage, doublePage: doublePage)
+        let oldPageViewController = pageViewController
+        let wasInstalled = oldPageViewController.parent === self
+
+        if wasInstalled {
+            oldPageViewController.remove()
+        }
+
+        let newPageViewController = makePageViewController(doublePage: doublePage)
+        newPageViewController.isDoubleSided = doublePage
+        newPageViewController.setViewControllers(
+            viewControllers,
             direction: .forward,
             animated: false
         )
-        pageViewController.isDoubleSided = false
+        newPageViewController.delegate = self
+        newPageViewController.dataSource = self
+        newPageViewController.view.isUserInteractionEnabled = !isLoadingChapter
+        pageViewController = newPageViewController
+
+        isTransitioning = false
+        lastDoublePageState = doublePage
+        setLiveTextButtonHidden(delegate?.barsHidden ?? false)
+
+        if wasInstalled {
+            add(child: newPageViewController)
+        }
     }
 
     // MARK: - Page Management
@@ -274,7 +288,7 @@ extension ReaderBookViewController {
             loadPageControllers()
             guard !pageViewControllers.isEmpty else {
                 currentPage = 1
-                showEmptyPage()
+                rebuildPageViewController(doublePage: false)
                 return
             }
             let target: Int
@@ -284,7 +298,7 @@ extension ReaderBookViewController {
                 target = max(1, min(startPage, pages.count))
             }
             currentPage = target
-            updateSpineLocation()
+            rebuildPageViewController(doublePage: isDoublePage)
             loadPagesAround(target)
             reportCurrentPage()
         }
@@ -326,33 +340,6 @@ extension ReaderBookViewController: UIPageViewControllerDataSource {
 
 // MARK: - UIPageViewControllerDelegate
 extension ReaderBookViewController: UIPageViewControllerDelegate {
-    func pageViewController(
-        _ pageViewController: UIPageViewController,
-        spineLocationFor orientation: UIInterfaceOrientation
-    ) -> UIPageViewController.SpineLocation {
-        let doublePage = orientation.isLandscape
-            && traitCollection.horizontalSizeClass == .regular
-            && !pageViewControllers.isEmpty
-        let viewControllers = currentViewControllers(for: currentPage, doublePage: doublePage)
-        let requiredCount = doublePage ? 2 : 1
-
-        guard viewControllers.count == requiredCount else {
-            showEmptyPage()
-            return .min
-        }
-
-        isTransitioning = false
-        setLiveTextButtonHidden(delegate?.barsHidden ?? false)
-        pageViewController.setViewControllers(
-            viewControllers,
-            direction: .forward,
-            animated: false
-        )
-        pageViewController.isDoubleSided = doublePage
-        lastDoublePageState = doublePage
-        return doublePage ? .mid : .min
-    }
-
     func pageViewController(
         _ pageViewController: UIPageViewController,
         willTransitionTo pendingViewControllers: [UIViewController]
